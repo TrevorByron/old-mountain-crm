@@ -7,6 +7,7 @@ import {
   KanbanIcon,
   ListFilterIcon,
   LogOutIcon,
+  SettingsIcon,
   MapIcon,
   RefreshCwIcon,
   SendIcon,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react"
 
 import { signOut } from "@/app/login/actions"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   Sidebar,
   SidebarContent,
@@ -33,27 +35,15 @@ import {
 } from "@/components/ui/sidebar"
 
 const NAV_GROUPS = [
-  { label: null, items: [{ href: "/today", label: "Today", icon: SunIcon }] },
   {
-    label: "Customers",
+    label: null,
     items: [
+      { href: "/today", label: "Today", icon: SunIcon },
       { href: "/subscribers", label: "People", icon: UsersIcon },
       { href: "/pipeline", label: "Pipeline", icon: KanbanIcon },
       { href: "/trips", label: "Trips", icon: MapIcon },
-    ],
-  },
-  {
-    label: "Marketing",
-    items: [
       { href: "/segments", label: "Segments", icon: ListFilterIcon },
       { href: "/broadcasts", label: "Campaigns", icon: SendIcon },
-    ],
-  },
-  {
-    label: "Settings",
-    items: [
-      { href: "/sync", label: "Airtable sync", icon: RefreshCwIcon },
-      { href: "/team", label: "Team", icon: UsersRoundIcon },
     ],
   },
 ]
@@ -101,12 +91,27 @@ export function AppSidebar({ email, attentionCount }: { email: string; attention
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <form action={signOut}>
-              <SidebarMenuButton type="submit" tooltip={email}>
-                <LogOutIcon />
-                <span className="truncate">Sign out {email}</span>
-              </SidebarMenuButton>
-            </form>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<SidebarMenuButton aria-label="Settings" />}>
+                <SettingsIcon />
+                <span className="truncate">Settings</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-56">
+                <DropdownMenuItem render={<Link href="/sync" />}>
+                  <RefreshCwIcon />
+                  Airtable sync
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<Link href="/team" />}>
+                  <UsersRoundIcon />
+                  Team
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => signOut()}>
+                  <LogOutIcon />
+                  Sign out {email}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

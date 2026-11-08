@@ -4,21 +4,12 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeftIcon } from "lucide-react"
 import { useEffect, useRef, useState, useTransition } from "react"
+
+import { ManageMenu } from "@/components/manage-menu"
 import { toast } from "sonner"
 
 import { MultiSelect, type MultiSelectOption } from "@/components/multi-select"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +23,7 @@ import {
   type JourneyRuleKey,
   type RuleOptions,
   type SegmentRules,
+  segmentRulesSchema,
 } from "@/lib/segments/rules"
 
 import { NewBroadcastDialog, type TemplateOption } from "../../broadcasts/new-broadcast-dialog"
@@ -155,17 +147,6 @@ export function SegmentEditor({
     })
   }
 
-  function destroy() {
-    startTransition(async () => {
-      const result = await deleteSegment(id)
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      router.push("/segments")
-    })
-  }
-
   return (
     <>
       <div className="flex flex-wrap items-start gap-2">
@@ -188,24 +169,32 @@ export function SegmentEditor({
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger render={<Button variant="outline" disabled={isPending} />}>Delete</AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {savedName}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Nobody is unsubscribed or removed from Airtable. Scheduled campaigns using this segment will skip it.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction variant="destructive" onClick={destroy}>
-                  Delete segment
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
           <NewBroadcastDialog templates={templates} segmentId={id} label="Email this segment" />
+          <ManageMenu
+            label="Manage this segment"
+            actions={[
+              {
+                label: "Reset rules",
+                title: "Clear this segment's rules?",
+                description: "Removes every rule. People you added by hand stay in it.",
+                success: "Rules cleared",
+                run: async () => {
+                  setRules(segmentRulesSchema.parse({}))
+                  setKeywords("")
+                  return { ok: true }
+                },
+              },
+              {
+                label: "Remove segment",
+                title: `Remove ${savedName}?`,
+                description: "Nobody is unsubscribed or removed from Airtable. Scheduled campaigns using this segment will skip it.",
+                destructive: true,
+                success: "Segment removed",
+                redirectTo: "/segments",
+                run: () => deleteSegment(id),
+              },
+            ]}
+          />
         </div>
       </div>
 

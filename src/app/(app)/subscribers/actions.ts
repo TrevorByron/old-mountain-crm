@@ -27,10 +27,16 @@ const subscriberSchema = z.object({
   phone: optionalText,
   status: z.string().nullable(),
   country: optionalText,
+  source: optionalText,
+  account_owner: optionalText,
 })
 
+// Each field saves on its own, so only what changed is sent.
+const subscriberFieldsSchema = subscriberSchema.partial().extend({ id: z.uuid() })
+const AIRTABLE_FIELDS_PUSHED = ["email", "first_name", "last_name", "phone"]
+
 export async function updateSubscriber(input: unknown): Promise<ActionResult> {
-  const parsed = subscriberSchema.safeParse(input)
+  const parsed = subscriberFieldsSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: "Check the email address and try again." }
 
   const { supabase, member } = await requireTeamMember()
@@ -39,11 +45,11 @@ export async function updateSubscriber(input: unknown): Promise<ActionResult> {
   const { data: current, error: readError } = await supabase.from("subscribers").select("airtable_record_id").eq("id", id).single()
   if (readError) return { ok: false, error: "Couldn't save those changes." }
   // People added in the app stay here. Only Airtable's own contacts are written back to it.
-  const linked = Boolean(current.airtable_record_id)
+  const linked = Boolean(current.airtable_record_id) && Object.keys(fields).some((field) => AIRTABLE_FIELDS_PUSHED.includes(field))
 
   const { error } = await supabase
     .from("subscribers")
-    .update({ ...fields, airtable_push_pending: linked, last_changed_by: member.email })
+    .update({ ...fields, ...(linked ? { airtable_push_pending: true } : {}), last_changed_by: member.email })
     .eq("id", id)
   if (error) {
     return {
@@ -104,6 +110,56 @@ export async function updateProfile(input: unknown): Promise<ActionResult> {
   if (error) return { ok: false, error: "Couldn't save that." }
 
   revalidatePath(`/subscribers/${id}`)
+  revalidatePath("/subscribers")
+  revalidatePath("/today")
+  return { ok: true }
+}
+
+// Clears what the team wrote about them. Contact details, trips and the log stay.
+export async function resetProfile(id: unknown): Promise<ActionResult> {
+  const parsed = z.uuid().safeParse(id)
+  if (!parsed.success) return { ok: false, error: "Couldn't find that person." }
+
+  const { supabase, member } = await requireTeamMember()
+  const { error } = await supabase
+    .from("subscribers")
+    .update({ about: null, tags: [], referred_by: null, follow_up_on: null, follow_up_note: null, last_changed_by: member.email })
+    .eq("id", parsed.data)
+  if (error) return { ok: false, error: "Couldn't reset their profile." }
+
+  revalidatePath(`/subscribers/${parsed.data}`)
+  revalidatePath("/subscribers")
+  revalidatePath("/today")
+  return { ok: true }
+}
+
+// An opt-out has to outlive the person's record: delete it and the next Airtable sync
+// could bring them back as someone who can be emailed.
+export async function removePerson(id: unknown): Promise<ActionResult> {
+  const parsed = z.uuid().safeParse(id)
+  if (!parsed.success) return { ok: false, error: "Couldn't find that person." }
+
+  const { supabase } = await requireTeamMember()
+  const { data: person, error: readError } = await supabase
+    .from("subscribers")
+    .select("unsubscribed_at, suppressed")
+    .eq("id", parsed.data)
+    .single()
+  if (readError) return { ok: false, error: "Couldn't find that person." }
+  if (person.unsubscribed_at || person.suppressed) {
+    return { ok: false, error: "They've opted out, so their record has to stay. That's what keeps them from being emailed again." }
+  }
+
+  const { count, error: tripError } = await supabase
+    .from("trip_plan_travelers")
+    .select("subscriber_id", { count: "exact", head: true })
+    .eq("subscriber_id", parsed.data)
+  if (tripError) return { ok: false, error: "Couldn't remove them." }
+  if (count) return { ok: false, error: "Remove them from their trips first, so no payments disappear by accident." }
+
+  const { error } = await supabase.from("subscribers").delete().eq("id", parsed.data)
+  if (error) return { ok: false, error: "Couldn't remove them." }
+
   revalidatePath("/subscribers")
   revalidatePath("/today")
   return { ok: true }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { formatMoney, planAttention, prepProgress, PREP_KEYS, seatsTaken, summarizePayments, type AttentionInput } from "./stages"
+import { formatMoney, isEarlyStage, nextMove, parseMoney, planAttention, prepProgress, PREP_KEYS, seatsTaken, summarizePayments, type AttentionInput } from "./stages"
 
 const TODAY = "2026-11-08"
 const TERMS = { agreed_total: 10900, deposit_amount: 3000, deposit_due_on: "2026-12-01", balance_due_on: "2027-08-01" }
@@ -157,6 +157,42 @@ describe("planAttention", () => {
   it("puts the most urgent first", () => {
     const reasons = planAttention(plan({ stage: "committed", agreed_total: 100, balance_due_on: "2026-11-01", next_step: null, next_step_due: null }), TODAY)
     expect(reasons.map((reason) => reason.severity)).toEqual(["overdue", "missing"])
+  })
+})
+
+describe("nextMove", () => {
+  it("walks a plan forward through the early stages", () => {
+    expect(nextMove("talking", 0)).toMatchObject({ kind: "stage", stage: "planning" })
+    expect(nextMove("planning", 0)).toMatchObject({ kind: "stage", stage: "proposal_sent" })
+    expect(nextMove("proposal_sent", 0)).toMatchObject({ kind: "deposit" })
+  })
+
+  it("asks for the deposit until money has come in", () => {
+    expect(nextMove("committed", 0)).toMatchObject({ kind: "deposit" })
+    expect(nextMove("committed", 500)).toMatchObject({ kind: "stage", stage: "ready" })
+  })
+
+  it("finishes at traveled and has nothing to offer on closed plans", () => {
+    expect(nextMove("ready", 500)).toMatchObject({ stage: "on_trip" })
+    expect(nextMove("on_trip", 500)).toMatchObject({ stage: "traveled" })
+    expect(nextMove("traveled", 500)).toBeNull()
+    expect(nextMove("not_this_time", 0)).toBeNull()
+  })
+})
+
+describe("isEarlyStage", () => {
+  it("is only true before someone has committed", () => {
+    expect(["talking", "planning", "proposal_sent"].every(isEarlyStage)).toBe(true)
+    expect(["committed", "ready", "on_trip", "traveled", "not_this_time"].some(isEarlyStage)).toBe(false)
+  })
+})
+
+describe("parseMoney", () => {
+  it("reads amounts however they're typed", () => {
+    expect(parseMoney("$3,000")).toBe(3000)
+    expect(parseMoney(" 2500.50 ")).toBe(2500.5)
+    expect(parseMoney("")).toBeNull()
+    expect(parseMoney("about 3k")).toBeNaN()
   })
 })
 

@@ -73,3 +73,12 @@ describe("formatDate", () => {
     expect(formatDate(null)).toBe("-")
   })
 })
+
+describe("describeActivity for payment changes", () => {
+  it("marks corrections and removals so the money trail stays readable", () => {
+    const entry = (action?: string) => describeActivity({ kind: "payment", body: null, meta: { kind: "deposit", amount: 2500, action } })
+    expect(entry().title).toBe("Deposit of $2,500")
+    expect(entry("edited").title).toBe("Changed to: Deposit of $2,500")
+    expect(entry("removed").title).toBe("Removed: Deposit of $2,500")
+  })
+})

@@ -4,7 +4,8 @@ import Link from "next/link"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
-import { addNote, deleteNote } from "@/app/(app)/pipeline/actions"
+import { addNote, deleteNote, updateNote } from "@/app/(app)/pipeline/actions"
+import { InlineText } from "@/components/inline-edit"
 import { SimpleSelect } from "@/components/simple-select"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -41,17 +42,19 @@ export function NoteComposer({ subscriberId = null, planId = null }: { subscribe
       <Textarea
         aria-label="Add to the log"
         placeholder="What happened? What did they say?"
-        rows={3}
+        rows={2}
         value={body}
         onChange={(event) => setBody(event.target.value)}
       />
-      <div className="flex items-center gap-2">
-        <SimpleSelect label="Kind of entry" items={KINDS} value={kind} onChange={setKind} className="w-32" />
-        <Button onClick={save} disabled={isPending || !body.trim()}>
-          {isPending && <Spinner data-icon="inline-start" />}
-          Add to log
-        </Button>
-      </div>
+      {body.trim() && (
+        <div className="flex items-center gap-2">
+          <SimpleSelect label="Kind of entry" items={KINDS} value={kind} onChange={setKind} className="w-32" />
+          <Button onClick={save} disabled={isPending}>
+            {isPending && <Spinner data-icon="inline-start" />}
+            Add to log
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -81,7 +84,12 @@ export function ActivityTimeline({ entries }: { entries: TimelineEntry[] }) {
               entry.title
             )}
           </div>
-          {entry.detail && <p className="whitespace-pre-wrap">{entry.detail}</p>}
+          {entry.detail &&
+            (entry.deletable ? (
+              <InlineText label="Edit note" multiline rows={1} required value={entry.detail} className="-ml-1" onSave={(body) => updateNote({ id: entry.id, body })} />
+            ) : (
+              <p className="whitespace-pre-wrap">{entry.detail}</p>
+            ))}
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             {whenFormat.format(new Date(entry.when))}
             {entry.author ? ` · ${entry.author}` : ""}
@@ -98,7 +106,7 @@ export function ActivityTimeline({ entries }: { entries: TimelineEntry[] }) {
                   })
                 }
               >
-                Delete
+                Remove
               </Button>
             )}
           </p>

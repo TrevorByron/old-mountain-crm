@@ -28,7 +28,8 @@ export function describeActivity(activity: Pick<ActivityRow, "kind" | "body" | "
       return { title: `Itinerary: ${itineraryLabel(String(meta.from))} → ${itineraryLabel(String(meta.to))}`, detail: null }
     case "payment": {
       const label = `${paymentKindLabel(String(meta.kind))} of ${formatMoney(meta.amount as number)}`
-      return { title: meta.action === "removed" ? `Removed: ${label}` : label, detail: null }
+      const prefix = meta.action === "removed" ? "Removed: " : meta.action === "edited" ? "Changed to: " : ""
+      return { title: `${prefix}${label}`, detail: null }
     }
     case "prep":
       return { title: activity.body ?? "Trip prep updated", detail: null }

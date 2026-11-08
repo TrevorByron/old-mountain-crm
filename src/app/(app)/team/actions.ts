@@ -39,3 +39,31 @@ export async function inviteMember(input: unknown) {
   }
   return { ok: true as const }
 }
+
+const memberNameSchema = z.object({ id: z.uuid(), name: z.string().trim().max(200) })
+
+export async function renameMember(input: unknown) {
+  const parsed = memberNameSchema.safeParse(input)
+  if (!parsed.success) return { ok: false as const, error: "Couldn't save that name." }
+
+  const { supabase } = await requireTeamMember()
+  const { error } = await supabase.from("team_members").update({ name: parsed.data.name || null }).eq("id", parsed.data.id)
+  if (error) return { ok: false as const, error: "Couldn't save that name." }
+  revalidatePath("/team")
+  return { ok: true as const }
+}
+
+// Their access is this row, so removing it stops them signing in.
+export async function removeMember(id: string) {
+  if (!z.uuid().safeParse(id).success) return { ok: false as const, error: "Couldn't find them." }
+
+  const { supabase, member } = await requireTeamMember()
+  if (member.id === id) return { ok: false as const, error: "You can't remove yourself. Ask someone else on the team." }
+
+  const { error } = await supabase.from("team_members").delete().eq("id", id)
+  if (error) {
+    return { ok: false as const, error: error.code === "23503" ? "They've created campaigns, so they can't be removed yet." : "Couldn't remove them." }
+  }
+  revalidatePath("/team")
+  return { ok: true as const }
+}

@@ -340,6 +340,30 @@ export async function deleteBroadcast(id: string) {
   return { ok: true as const }
 }
 
+// Back to what the template started with. Only drafts, because a sent email is a record.
+export async function resetBroadcast(id: string) {
+  if (!idSchema.safeParse(id).success) return { ok: false as const, error: "Couldn't find that campaign." }
+
+  const { supabase } = await requireTeamMember()
+  const { data: broadcast, error: readError } = await supabase
+    .from("broadcasts")
+    .select("state, templates (layout_key, content)")
+    .eq("id", id)
+    .single()
+  if (readError) return { ok: false as const, error: "Couldn't find that campaign." }
+  if (broadcast.state !== "draft") return { ok: false as const, error: "Only drafts can be reset." }
+  const template = broadcast.templates as unknown as { layout_key: string; content: unknown } | null
+
+  const { error } = await supabase
+    .from("broadcasts")
+    .update({ subject: null, preheader: null, content: template?.content ?? starterContent(template?.layout_key ?? "letter") })
+    .eq("id", id)
+  if (error) return { ok: false as const, error: "Couldn't reset the draft." }
+  revalidatePath("/broadcasts")
+  revalidatePath(`/broadcasts/${id}`)
+  return { ok: true as const }
+}
+
 // Any broadcast can seed a new draft, including ones already sent.
 export async function duplicateBroadcast(id: string) {
   if (!idSchema.safeParse(id).success) return { ok: false as const, error: "Couldn't find that broadcast." }

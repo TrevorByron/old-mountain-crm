@@ -14,6 +14,8 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { KanbanIcon } from "lucide-react"
 import Link from "next/link"
+
+import { ManageMenu } from "@/components/manage-menu"
 import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
@@ -34,6 +36,7 @@ import {
 } from "@/lib/pipeline/stages"
 
 import { updatePlan } from "./actions"
+import { planActions } from "./journey-controls"
 
 const ALL = "__all__"
 const NONE = "__none__"
@@ -54,9 +57,12 @@ function PlanCard({ plan, today }: { plan: PlanRow; today: string }) {
     >
       <Card size="sm" className={overdue ? "ring-2 ring-destructive" : undefined}>
         <CardContent className="flex flex-col gap-1.5">
-          <Link href={`/pipeline/${plan.id}`} className="font-medium underline-offset-4 hover:underline">
-            {planTitle(plan)}
-          </Link>
+          <div className="flex items-start justify-between gap-1">
+            <Link href={`/pipeline/${plan.id}`} className="font-medium underline-offset-4 hover:underline">
+              {planTitle(plan)}
+            </Link>
+            <ManageMenu label={`Manage ${planTitle(plan)}`} actions={planActions(plan, null)} className="-mt-1 -mr-1" />
+          </div>
           <p className="text-xs text-muted-foreground">
             {plan.trips?.name ?? "Trip not decided"}
             {plan.owner ? ` · ${plan.owner}` : ""}

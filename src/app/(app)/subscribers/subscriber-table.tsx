@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import {
   createColumnHelper,
   createPaginatedRowModel,
@@ -19,6 +18,8 @@ import {
 import { ArrowUpDownIcon, SearchIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { InlineCheckbox, InlineText } from "@/components/inline-edit"
+import { ManageMenu } from "@/components/manage-menu"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -32,14 +33,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 import { LIFECYCLES, lifecycleLabel } from "@/lib/pipeline/stages"
 
 import { addToSegment } from "../segments/actions"
-import { bulkChangeStatus } from "./actions"
+import { removePerson, updateProfile, updateSubscriber } from "./actions"
 
 export type Subscriber = {
   id: string
@@ -68,14 +68,13 @@ export type Subscriber = {
   interests_other: string | null
   objections: string[]
   objections_other: string | null
+  airtable_record_id?: string | null
 }
 
 export function fullName(subscriber: Pick<Subscriber, "first_name" | "last_name">) {
   return [subscriber.first_name, subscriber.last_name].filter(Boolean).join(" ")
 }
 
-const ALL_STATUSES = "__all__"
-const NO_STATUS = "__none__"
 const ALL_INTERESTS = "__all__"
 const ALL_STAGES = "__all__"
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" })
@@ -100,14 +99,17 @@ function SortableHeader({ label, onToggle }: { label: string; onToggle?: (event:
   )
 }
 
-function SubscriptionBadge({ subscriber }: { subscriber: Subscriber }) {
+function EmailToggle({ subscriber }: { subscriber: Subscriber }) {
   if (!subscriber.email) return <Badge variant="outline">No email</Badge>
-  if (!subscriber.marketing_ok && !subscriber.unsubscribed_at && !subscriber.suppressed) {
-    return <Badge variant="outline">Not on the list</Badge>
-  }
   if (subscriber.suppressed) return <Badge variant="destructive">Suppressed</Badge>
   if (subscriber.unsubscribed_at) return <Badge variant="outline">Unsubscribed</Badge>
-  return <Badge variant="secondary">Subscribed</Badge>
+  return (
+    <InlineCheckbox
+      label={`Send marketing email to ${subscriber.email}`}
+      checked={subscriber.marketing_ok}
+      onSave={(marketing_ok) => updateProfile({ id: subscriber.id, marketing_ok })}
+    />
+  )
 }
 
 const columns = helper.columns([
@@ -136,8 +138,10 @@ const columns = helper.columns([
     header: ({ column }) => <SortableHeader label="Name" onToggle={column.getToggleSortingHandler()} />,
     cell: ({ row, getValue }) => (
       <div className="min-w-0">
-        <div className="truncate font-medium">{getValue() || "No name"}</div>
-        <div className="truncate text-xs text-muted-foreground">{row.original.email ?? row.original.phone ?? "No contact details"}</div>
+        <Link href={`/subscribers/${row.original.id}`} className="block truncate px-1 font-medium underline-offset-4 hover:underline">
+          {getValue() || "No name"}
+        </Link>
+        <InlineText label="Email" type="email" value={row.original.email} placeholder="Add email" className="text-xs text-muted-foreground" onSave={(email) => updateSubscriber({ id: row.original.id, email })} />
       </div>
     ),
   }),
@@ -173,14 +177,36 @@ const columns = helper.columns([
   }),
   helper.display({
     id: "subscription",
-    header: "Email",
-    cell: ({ row }) => <SubscriptionBadge subscriber={row.original} />,
+    header: "Marketing email",
+    cell: ({ row }) => <EmailToggle subscriber={row.original} />,
+  }),
+  helper.display({
+    id: "manage",
+    header: "",
+    cell: ({ row }) => (
+      <ManageMenu
+        label={`Manage ${fullName(row.original) || row.original.email || "this person"}`}
+        actions={[
+          {
+            label: "Remove person",
+            title: "Remove this person for good?",
+            description: row.original.airtable_record_id
+              ? "This deletes their record and log. They're also in Airtable, so the next sync brings them back unless you delete them there too."
+              : "This deletes their record and log for good.",
+            destructive: true,
+            success: "Removed",
+            run: () => removePerson(row.original.id),
+          },
+        ]}
+      />
+    ),
   }),
 ])
 
 // On a phone the table drops to name and relationship.
 const HIDDEN_ON_SMALL: Record<string, string> = {
   select: "hidden sm:table-cell",
+  manage: "w-10 text-right",
   interests: "hidden xl:table-cell",
   last_touch: "hidden lg:table-cell",
   subscription: "hidden md:table-cell",
@@ -188,20 +214,15 @@ const HIDDEN_ON_SMALL: Record<string, string> = {
 
 export function SubscriberTable({
   subscribers,
-  statuses,
   segments,
 }: {
   subscribers: Subscriber[]
-  statuses: string[]
   segments: { id: string; name: string }[]
 }) {
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState(ALL_STATUSES)
   const [interestFilter, setInterestFilter] = useState(ALL_INTERESTS)
-  const [bulkStatus, setBulkStatus] = useState<string | null>(null)
   const [bulkSegment, setBulkSegment] = useState<string | null>(null)
   const [stageFilter, setStageFilter] = useState(ALL_STAGES)
-  const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [isPending, startTransition] = useTransition()
 
@@ -214,15 +235,11 @@ export function SubscriberTable({
   const data = useMemo(() => {
     const query = search.trim().toLowerCase()
     return subscribers.filter((subscriber) => {
-      if (statusFilter === NO_STATUS && subscriber.status) return false
-      if (statusFilter !== NO_STATUS && statusFilter !== ALL_STATUSES && subscriber.status !== statusFilter) {
-        return false
-      }
       if (interestFilter !== ALL_INTERESTS && !subscriber.interests.includes(interestFilter)) return false
       if (stageFilter !== ALL_STAGES && subscriber.lifecycle !== stageFilter) return false
       return !query || `${fullName(subscriber)} ${subscriber.email ?? ""} ${subscriber.phone ?? ""} ${subscriber.tags.join(" ")} ${subscriber.about ?? ""}`.toLowerCase().includes(query)
     })
-  }, [subscribers, search, statusFilter, interestFilter, stageFilter])
+  }, [subscribers, search, interestFilter, stageFilter])
 
   const table = useTable({
     features,
@@ -236,43 +253,20 @@ export function SubscriberTable({
   })
 
   const selectedIds = Object.keys(rowSelection)
-  const filtersActive = Boolean(search.trim()) || statusFilter !== ALL_STATUSES || interestFilter !== ALL_INTERESTS || stageFilter !== ALL_STAGES
+  const filtersActive = Boolean(search.trim()) || interestFilter !== ALL_INTERESTS || stageFilter !== ALL_STAGES
 
   function clearFilters() {
     setSearch("")
-    setStatusFilter(ALL_STATUSES)
     setInterestFilter(ALL_INTERESTS)
     setStageFilter(ALL_STAGES)
   }
 
-  const statusItems = [
-    { label: "All statuses", value: ALL_STATUSES },
-    ...statuses.map((status) => ({ label: status, value: status })),
-    { label: "No status", value: NO_STATUS },
-  ]
   const interestItems = [
     { label: "All interests", value: ALL_INTERESTS },
     ...[...new Set(subscribers.flatMap((subscriber) => subscriber.interests))]
       .sort()
       .map((interest) => ({ label: interest, value: interest })),
   ]
-
-  function applyBulkStatus() {
-    if (!bulkStatus) return
-    startTransition(async () => {
-      const result = await bulkChangeStatus({ ids: selectedIds, status: bulkStatus })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      const count = selectedIds.length
-      toast.success(`Moved ${count} ${count === 1 ? "person" : "people"} to ${bulkStatus}`, {
-        description: result.warning,
-      })
-      setRowSelection({})
-      setBulkStatus(null)
-    })
-  }
 
   function applyBulkSegment() {
     const segment = segments.find((item) => item.id === bulkSegment)
@@ -338,24 +332,6 @@ export function SubscriberTable({
           </InputGroupAddon>
         </InputGroup>
         <Select
-          items={statusItems}
-          value={statusFilter}
-          onValueChange={(value) => setStatusFilter(value ?? ALL_STATUSES)}
-        >
-          <SelectTrigger aria-label="Filter by status" className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {statusItems.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Select
           items={interestItems}
           value={interestFilter}
           onValueChange={(value) => setInterestFilter(value ?? ALL_INTERESTS)}
@@ -388,28 +364,6 @@ export function SubscriberTable({
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-accent p-2">
           <span className="px-1 text-sm font-medium">{selectedIds.length} selected</span>
-            <Select
-              items={statuses.map((status) => ({ label: status, value: status }))}
-              value={bulkStatus}
-              onValueChange={setBulkStatus}
-            >
-              <SelectTrigger aria-label="New status" className="w-40">
-                <SelectValue placeholder="Change status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {statuses.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Button onClick={applyBulkStatus} disabled={!bulkStatus || isPending}>
-              {isPending && <Spinner data-icon="inline-start" />}
-              Apply
-            </Button>
             {segments.length > 0 && (
               <>
                 <Select
@@ -466,8 +420,6 @@ export function SubscriberTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() ? "selected" : undefined}
-                  className="cursor-pointer"
-                  onClick={() => router.push(`/subscribers/${row.original.id}`)}
                 >
                   {row.getAllCells().map((cell) => (
                     <TableCell key={cell.id} className={HIDDEN_ON_SMALL[cell.column.id]}>
@@ -483,7 +435,7 @@ export function SubscriberTable({
 
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">
-          {data.length} {data.length === 1 ? "subscriber" : "subscribers"}
+          {data.length} {data.length === 1 ? "person" : "people"}
         </span>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>

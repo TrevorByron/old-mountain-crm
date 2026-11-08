@@ -7,10 +7,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
-import { formatDate, todayIso } from "@/lib/pipeline/display"
+import { todayIso } from "@/lib/pipeline/display"
 import { formatMoney, holdsSeat, isOpenStage, seatsTaken, summarizePayments } from "@/lib/pipeline/stages"
 
 import { TripDialog } from "./trip-dialog"
+import { TripMenu, TripRowDates, TripRowSeats } from "./trip-fields"
 
 export const metadata = { title: "Trips" }
 
@@ -49,7 +50,7 @@ export default async function TripsPage() {
 
   return (
     <>
-      <PageHeader title="Trips" description="Your departures and custom safaris, with who's on them.">
+      <PageHeader title="Trips" description="Click any date or seat count to change it.">
         <TripDialog />
       </PageHeader>
       {trips.length === 0 ? (
@@ -76,6 +77,7 @@ export default async function TripsPage() {
                   <TableHead>Seats taken</TableHead>
                   <TableHead className="hidden sm:table-cell">In talks</TableHead>
                   <TableHead className="text-right">Collected</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -89,14 +91,19 @@ export default async function TripsPage() {
                       {trip.archived && <Badge variant="outline">Archived</Badge>}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {formatDate(trip.starts_on)} to {formatDate(trip.ends_on)}
+                      <TripRowDates trip={trip} />
                     </TableCell>
                     <TableCell className="tabular-nums">
-                      {trip.taken}
-                      {trip.seats ? ` of ${trip.seats}` : ""}
+                      <div className="flex items-center gap-1">
+                        {trip.taken} of
+                        <TripRowSeats trip={trip} />
+                      </div>
                     </TableCell>
                     <TableCell className="hidden tabular-nums sm:table-cell">{trip.talking}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatMoney(trip.collected)}</TableCell>
+                    <TableCell className="w-10 text-right">
+                      <TripMenu trip={trip} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

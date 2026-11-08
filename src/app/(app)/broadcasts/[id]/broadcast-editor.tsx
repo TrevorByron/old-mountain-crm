@@ -7,10 +7,7 @@ import {
   CalendarIcon,
   CheckCircle2Icon,
   CircleAlertIcon,
-  CopyIcon,
-  MoreHorizontalIcon,
   Redo2Icon,
-  Trash2Icon,
   TriangleAlertIcon,
   Undo2Icon,
   UserRoundIcon,
@@ -45,12 +42,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -75,7 +66,9 @@ import {
   saveAsTemplate,
   saveBroadcast,
   sendTest,
+  resetBroadcast,
 } from "../actions"
+import { ManageMenu } from "@/components/manage-menu"
 import { BlockEditor } from "./block-editor"
 import { EmailPreview } from "./email-preview"
 
@@ -887,37 +880,40 @@ export function BroadcastEditor({
           {saveStatus}
         </span>
         <div className="ml-auto">
-          <AlertDialog>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="More actions" />}>
-                <MoreHorizontalIcon />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem disabled={isPending} onClick={duplicate}>
-                  <CopyIcon />
-                  Duplicate
-                </DropdownMenuItem>
-                {!readOnly && (
-                  <AlertDialogTrigger nativeButton={false} render={<DropdownMenuItem variant="destructive" closeOnClick={false} />}>
-                    <Trash2Icon />
-                    Delete draft
-                  </AlertDialogTrigger>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
-                <AlertDialogDescription>Nothing has been sent. This removes the draft for good.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep it</AlertDialogCancel>
-                <AlertDialogAction variant="destructive" onClick={destroy}>
-                  Delete draft
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <ManageMenu
+            label="More actions"
+            actions={[
+              {
+                label: "Duplicate",
+                run: async () => {
+                  duplicate()
+                  return { ok: true }
+                },
+              },
+              {
+                label: "Reset to template",
+                title: "Start this draft over?",
+                description: "Clears your writing and photos and puts the template back.",
+                hidden: readOnly,
+                run: async () => {
+                  const result = await resetBroadcast(broadcast.id)
+                  if (result.ok) window.location.reload()
+                  return result
+                },
+              },
+              {
+                label: "Remove draft",
+                title: "Remove this draft?",
+                description: "Nothing has been sent. This removes the draft for good.",
+                destructive: true,
+                hidden: readOnly,
+                run: async () => {
+                  destroy()
+                  return { ok: true }
+                },
+              },
+            ]}
+          />
         </div>
       </div>
       {isMobile ? (

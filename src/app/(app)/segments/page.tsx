@@ -10,6 +10,7 @@ import { LIFECYCLES, STAGES } from "@/lib/pipeline/stages"
 import { describeRules, segmentRulesSchema } from "@/lib/segments/rules"
 
 import { NewSegmentDialog } from "./new-segment-dialog"
+import { SegmentRowDescription, SegmentRowMenu } from "./segment-row"
 
 export const metadata = { title: "Segments" }
 
@@ -43,7 +44,7 @@ export default async function SegmentsPage() {
 
   return (
     <>
-      <PageHeader title="Segments" description="Groups of people you can send campaigns to. They stay up to date on their own.">
+      <PageHeader title="Segments" description="Groups you can email. They update on their own.">
         <NewSegmentDialog />
       </PageHeader>
       {rows.length === 0 ? (
@@ -70,6 +71,7 @@ export default async function SegmentsPage() {
                   <TableHead>Name</TableHead>
                   <TableHead className="hidden md:table-cell">Who&apos;s in it</TableHead>
                   <TableHead className="text-right">People</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -79,12 +81,15 @@ export default async function SegmentsPage() {
                       <Link href={`/segments/${segment.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
                         {segment.name}
                       </Link>
-                      {segment.description && <p className="text-muted-foreground">{segment.description}</p>}
+                      <SegmentRowDescription id={segment.id} name={segment.name} description={segment.description} rules={segment.rules} />
                     </TableCell>
                     <TableCell className="hidden whitespace-normal text-muted-foreground md:table-cell">
                       {segment.rulesText || "Added by hand"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{segment.people}</TableCell>
+                    <TableCell className="w-10 text-right">
+                      <SegmentRowMenu id={segment.id} name={segment.name} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

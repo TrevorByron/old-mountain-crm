@@ -30,7 +30,7 @@ export default async function TripPlanPage({ params }: PageProps<"/pipeline/[id]
   const plan = data as unknown as PlanRow
 
   const [trips, activity] = await Promise.all([
-    supabase.from("trips").select("id, name, archived").order("starts_on"),
+    supabase.from("trips").select("id, name, archived, price_per_person, deposit_per_person").order("starts_on"),
     supabase
       .from("activities")
       .select("id, kind, body, meta, author, occurred_at")
@@ -69,7 +69,7 @@ export default async function TripPlanPage({ params }: PageProps<"/pipeline/[id]
     <PlanEditor
       key={plan.id}
       plan={plan}
-      trips={trips.data.filter((trip) => !trip.archived || trip.id === plan.trip_id).map((trip) => ({ value: trip.id, label: trip.name }))}
+      trips={trips.data.filter((trip) => !trip.archived || trip.id === plan.trip_id).map((trip) => ({ value: trip.id, label: trip.name, price: trip.price_per_person, deposit: trip.deposit_per_person }))}
       people={people
         .filter((person) => !onPlan.has(person.id))
         .map((person) => ({

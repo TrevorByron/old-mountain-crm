@@ -7,10 +7,9 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
 import { loadAttention, type AttentionItem } from "@/lib/pipeline/attention"
-import { formatDate, personName } from "@/lib/pipeline/display"
+import { formatDate } from "@/lib/pipeline/display"
 import { formatMoney, holdsSeat, isOpenStage } from "@/lib/pipeline/stages"
 
-import { NewPlanDialog } from "../pipeline/new-plan-dialog"
 import { AddPersonDialog } from "../subscribers/add-person-dialog"
 import { ReminderDone } from "./reminder-done"
 
@@ -43,7 +42,7 @@ function AttentionRow({ item }: { item: AttentionItem }) {
 
 export default async function TodayPage() {
   const { supabase } = await requireTeamMember()
-  const { items, review, people, plans, openPlanCount, balanceDue, today } = await loadAttention(supabase)
+  const { items, review, plans, openPlanCount, balanceDue, today } = await loadAttention(supabase)
 
   const { data: trips, error } = await supabase
     .from("trips")
@@ -54,13 +53,6 @@ export default async function TodayPage() {
     .limit(3)
   if (error) throw new Error(error.message)
 
-  const { data: planTrips, error: planTripsError } = await supabase
-    .from("trips")
-    .select("id, name")
-    .eq("archived", false)
-    .order("starts_on")
-  if (planTripsError) throw new Error(planTripsError.message)
-
   const seatsFor = (tripId: string) =>
     plans
       .filter((plan) => plan.trip_id === tripId && holdsSeat(plan.stage))
@@ -69,24 +61,17 @@ export default async function TodayPage() {
     plans.filter((plan) => plan.trip_id === tripId && isOpenStage(plan.stage) && !holdsSeat(plan.stage)).length
 
   const stats = [
-    { label: "People", value: String(people.length), href: "/subscribers" },
     { label: "Open trip plans", value: String(openPlanCount), href: "/pipeline" },
     { label: "Still to collect", value: formatMoney(balanceDue), href: "/trips" },
   ]
 
   return (
     <>
-      <PageHeader title="Today" description="What needs you, and how your trips are looking.">
-        <div className="flex flex-wrap gap-2">
-          <AddPersonDialog />
-          <NewPlanDialog
-            people={people.map((person) => ({ value: person.id, label: personName(person) }))}
-            trips={planTrips.map((trip) => ({ value: trip.id as string, label: trip.name as string }))}
-          />
-        </div>
+      <PageHeader title="Today">
+        <AddPersonDialog />
       </PageHeader>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {stats.map((stat) => (
           <Card key={stat.label} size="sm" className="relative">
             <CardHeader>
@@ -106,7 +91,6 @@ export default async function TodayPage() {
           <Card>
             <CardHeader>
               <CardTitle>Needs you</CardTitle>
-              <CardDescription>Late money, overdue next steps, reminders and past guests worth a call.</CardDescription>
             </CardHeader>
             <CardContent>
               {items.length === 0 ? (
@@ -135,9 +119,7 @@ export default async function TodayPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Worth reviewing</CardTitle>
-                <CardDescription>
-                  Airtable suggests these people have booked or traveled, but they have no trip plan yet. Open each one and start a plan if it&apos;s right.
-                </CardDescription>
+                <CardDescription>Airtable says they booked or traveled, but they have no trip plan.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>

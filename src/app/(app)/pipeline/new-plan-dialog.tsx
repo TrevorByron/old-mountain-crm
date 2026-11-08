@@ -19,13 +19,11 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
-import { OWNERS, STAGES } from "@/lib/pipeline/stages"
 
 import { createPlan } from "./actions"
 
 const NO_TRIP = "__none__"
 const NEW_TRIP = "__new__"
-const NO_OWNER = "__none__"
 
 export function NewPlanDialog({
   people,
@@ -33,21 +31,21 @@ export function NewPlanDialog({
   personId = null,
   defaultOwner = null,
   label = "New trip plan",
+  variant = "default",
 }: {
   people: PersonOption[]
   trips: SimpleOption[]
   personId?: string | null
   defaultOwner?: string | null
   label?: string
+  variant?: "default" | "outline" | "ghost"
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [person, setPerson] = useState(personId)
-  const [trip, setTrip] = useState(NO_TRIP)
+  const [trip, setTrip] = useState(personId && trips.length === 1 ? trips[0].value : NO_TRIP)
   const [tripName, setTripName] = useState("")
   const [tripDate, setTripDate] = useState("")
-  const [stage, setStage] = useState("talking")
-  const [owner, setOwner] = useState(defaultOwner && OWNERS.includes(defaultOwner) ? defaultOwner : NO_OWNER)
   const [isPending, startTransition] = useTransition()
 
   function create() {
@@ -56,11 +54,11 @@ export function NewPlanDialog({
         subscriberId: person,
         tripId: trip === NO_TRIP || trip === NEW_TRIP ? null : trip,
         newTrip: trip === NEW_TRIP ? { name: tripName, starts_on: tripDate || null } : null,
-        stage,
-        owner: owner === NO_OWNER ? null : owner,
+        owner: defaultOwner,
       })
       if (!result.ok) {
-        toast.error(result.error)
+        const existing = "existingId" in result ? result.existingId : null
+        toast.error(result.error, existing ? { action: { label: "Open it", onClick: () => router.push(`/pipeline/${existing}`) } } : undefined)
         return
       }
       router.push(`/pipeline/${result.id}`)
@@ -69,11 +67,11 @@ export function NewPlanDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>{label}</DialogTrigger>
+      <DialogTrigger render={<Button variant={variant} />}>{label}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New trip plan</DialogTitle>
-          <DialogDescription>Follows one person or group pursuing one trip. To log a safari they&apos;ve already taken, set the stage to Traveled.</DialogDescription>
+          <DialogTitle>{label}</DialogTitle>
+          <DialogDescription>Starts at Talking. You can change the stage on the next screen.</DialogDescription>
         </DialogHeader>
         <FieldGroup>
           {!personId && (
@@ -103,29 +101,11 @@ export function NewPlanDialog({
               </Field>
             </div>
           )}
-          <Field>
-            <FieldLabel htmlFor="plan-stage">Stage</FieldLabel>
-            <SimpleSelect
-              id="plan-stage"
-              items={STAGES.map((item) => ({ value: item.key, label: item.label }))}
-              value={stage}
-              onChange={setStage}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="plan-owner">Owner</FieldLabel>
-            <SimpleSelect
-              id="plan-owner"
-              items={[{ value: NO_OWNER, label: "Nobody yet" }, ...OWNERS.map((name) => ({ value: name, label: name }))]}
-              value={owner}
-              onChange={setOwner}
-            />
-          </Field>
         </FieldGroup>
         <DialogFooter>
           <Button onClick={create} disabled={!person || isPending || (trip === NEW_TRIP && !tripName.trim())}>
             {isPending && <Spinner data-icon="inline-start" />}
-            Start trip plan
+            Add to trip
           </Button>
         </DialogFooter>
       </DialogContent>

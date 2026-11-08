@@ -8,6 +8,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
 
+import { CampaignRowMenu } from "./campaign-row"
 import { NewBroadcastDialog } from "./new-broadcast-dialog"
 
 export const metadata = { title: "Campaigns" }
@@ -66,6 +67,7 @@ export default async function BroadcastsPage() {
                   <TableHead>State</TableHead>
                   <TableHead className="hidden md:table-cell">When (Eastern)</TableHead>
                   <TableHead className="text-right">Recipients</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -85,6 +87,9 @@ export default async function BroadcastsPage() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{when ? dateFormat.format(new Date(when)) : "-"}</TableCell>
                       <TableCell className="text-right tabular-nums">{broadcast.sends[0]?.count ?? 0}</TableCell>
+                      <TableCell className="w-10 text-right">
+                        <CampaignRowMenu id={broadcast.id} name={broadcast.name} isDraft={broadcast.state === "draft"} />
+                      </TableCell>
                     </TableRow>
                   )
                 })}

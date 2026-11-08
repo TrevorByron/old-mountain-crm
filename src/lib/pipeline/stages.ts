@@ -17,6 +17,32 @@ export const isOpenStage = (stage: string) => stage !== "traveled" && stage !== 
 // Holding a seat: they've said yes and the trip hasn't been lost.
 export const holdsSeat = (stage: string) => ["committed", "ready", "on_trip", "traveled"].includes(stage)
 const isCommitted = (stage: string) => ["committed", "ready", "on_trip"].includes(stage)
+// Still deciding. A deposit moves a plan out of these.
+export const EARLY_STAGES = ["talking", "planning", "proposal_sent"]
+export const isEarlyStage = (stage: string) => EARLY_STAGES.includes(stage)
+
+export type NextMove = { kind: "deposit"; label: string } | { kind: "stage"; stage: StageKey; label: string }
+
+// The one thing that usually happens next. The stage tracker still allows skipping or going back.
+export function nextMove(stage: string, paid: number): NextMove | null {
+  const deposit: NextMove = { kind: "deposit", label: "Record a deposit" }
+  switch (stage) {
+    case "talking":
+      return { kind: "stage", stage: "planning", label: "Move to Planning" }
+    case "planning":
+      return { kind: "stage", stage: "proposal_sent", label: "Mark proposal sent" }
+    case "proposal_sent":
+      return deposit
+    case "committed":
+      return paid > 0 ? { kind: "stage", stage: "ready", label: "Move to Ready to travel" } : deposit
+    case "ready":
+      return { kind: "stage", stage: "on_trip", label: "Mark as on trip" }
+    case "on_trip":
+      return { kind: "stage", stage: "traveled", label: "Mark as traveled" }
+    default:
+      return null
+  }
+}
 
 export const LIFECYCLES = [
   { key: "subscriber", label: "Subscriber" },
@@ -62,6 +88,13 @@ export const PAYMENT_KIND_KEYS = PAYMENT_KINDS.map((item) => item.key) as [Payme
 export const paymentKindLabel = (key: string) => PAYMENT_KINDS.find((item) => item.key === key)?.label ?? key
 
 export const OWNERS = ["Jesse", "Trevor", "Heather"]
+
+export function parseMoney(value: string) {
+  const cleaned = value.replace(/[$,\s]/g, "")
+  if (!cleaned) return null
+  const amount = Number(cleaned)
+  return Number.isFinite(amount) ? amount : Number.NaN
+}
 
 const toCents = (value: number | string | null | undefined) => Math.round(Number(value ?? 0) * 100)
 
