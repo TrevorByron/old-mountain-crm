@@ -15,8 +15,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -49,6 +50,44 @@ export function SubscriberSheet({
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+function Detail({ label, value, badges = [] }: { label: string; value?: string | null; badges?: string[] }) {
+  if (!value && badges.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      {badges.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {badges.map((badge) => (
+            <Badge key={badge} variant="outline">
+              {badge}
+            </Badge>
+          ))}
+        </div>
+      )}
+      {value && <span className="whitespace-pre-wrap">{value}</span>}
+    </div>
+  )
+}
+
+function AirtableDetails({ subscriber }: { subscriber: Subscriber }) {
+  return (
+    <FieldSet>
+      <FieldLegend>From Airtable</FieldLegend>
+      <div className="flex flex-col gap-3">
+        <Detail label="What excites them" value={subscriber.interests_other} badges={subscriber.interests} />
+        <Detail label="Trip type" value={subscriber.trip_type} />
+        <Detail label="Departure window" value={subscriber.departure_window} />
+        <Detail label="Group size" value={subscriber.group_size} />
+        <Detail label="Objections" value={subscriber.objections_other} badges={subscriber.objections} />
+        <Detail label="Segments" badges={subscriber.segments} />
+        <Detail label="Heard about us" value={subscriber.source} />
+        <Detail label="Account owner" value={subscriber.account_owner} />
+        <Detail label="Phone" value={subscriber.phone} />
+      </div>
+    </FieldSet>
   )
 }
 
@@ -151,6 +190,7 @@ function SubscriberForm({
             <Input id="country" name="country" defaultValue={subscriber.country ?? ""} />
           </Field>
         </FieldGroup>
+        <AirtableDetails subscriber={subscriber} />
         <SheetFooter className="mt-auto px-0">
           <Button type="submit" disabled={isPending}>
             {isPending && <Spinner data-icon="inline-start" />}

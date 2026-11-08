@@ -34,6 +34,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
+import { addToSegment } from "../segments/actions"
 import { bulkChangeStatus } from "./actions"
 import { SubscriberSheet } from "./subscriber-sheet"
 
@@ -50,6 +51,15 @@ export type Subscriber = {
   unsubscribed_at: string | null
   suppressed: boolean
   suppressed_reason: string | null
+  phone: string | null
+  account_owner: string | null
+  trip_type: string | null
+  departure_window: string | null
+  group_size: string | null
+  interests: string[]
+  interests_other: string | null
+  objections: string[]
+  objections_other: string | null
 }
 
 export function fullName(subscriber: Pick<Subscriber, "first_name" | "last_name">) {
@@ -58,6 +68,7 @@ export function fullName(subscriber: Pick<Subscriber, "first_name" | "last_name"
 
 const ALL_STATUSES = "__all__"
 const NO_STATUS = "__none__"
+const ALL_INTERESTS = "__all__"
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" })
 
 const features = tableFeatures({
@@ -132,6 +143,19 @@ const columns = helper.columns([
     header: "Subscription",
     cell: ({ row }) => <SubscriptionBadge subscriber={row.original} />,
   }),
+  helper.display({
+    id: "interests",
+    header: "Interests",
+    cell: ({ row }) => (
+      <div className="flex max-w-72 flex-wrap gap-1">
+        {row.original.interests.map((interest) => (
+          <Badge key={interest} variant="outline">
+            {interest}
+          </Badge>
+        ))}
+      </div>
+    ),
+  }),
   helper.accessor((row) => row.source ?? "", {
     id: "source",
     sortFn: "text",
@@ -148,14 +172,25 @@ const columns = helper.columns([
 // The table stays usable on a phone by dropping to name, status and subscription state.
 const HIDDEN_ON_SMALL: Record<string, string> = {
   email: "hidden md:table-cell",
+  interests: "hidden xl:table-cell",
   source: "hidden lg:table-cell",
   subscribed_at: "hidden lg:table-cell",
 }
 
-export function SubscriberTable({ subscribers, statuses }: { subscribers: Subscriber[]; statuses: string[] }) {
+export function SubscriberTable({
+  subscribers,
+  statuses,
+  segments,
+}: {
+  subscribers: Subscriber[]
+  statuses: string[]
+  segments: { id: string; name: string }[]
+}) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState(ALL_STATUSES)
+  const [interestFilter, setInterestFilter] = useState(ALL_INTERESTS)
   const [bulkStatus, setBulkStatus] = useState<string | null>(null)
+  const [bulkSegment, setBulkSegment] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [isPending, startTransition] = useTransition()
@@ -167,9 +202,10 @@ export function SubscriberTable({ subscribers, statuses }: { subscribers: Subscr
       if (statusFilter !== NO_STATUS && statusFilter !== ALL_STATUSES && subscriber.status !== statusFilter) {
         return false
       }
+      if (interestFilter !== ALL_INTERESTS && !subscriber.interests.includes(interestFilter)) return false
       return !query || `${fullName(subscriber)} ${subscriber.email}`.toLowerCase().includes(query)
     })
-  }, [subscribers, search, statusFilter])
+  }, [subscribers, search, statusFilter, interestFilter])
 
   const table = useTable({
     features,
@@ -189,6 +225,12 @@ export function SubscriberTable({ subscribers, statuses }: { subscribers: Subscr
     ...statuses.map((status) => ({ label: status, value: status })),
     { label: "No status", value: NO_STATUS },
   ]
+  const interestItems = [
+    { label: "All interests", value: ALL_INTERESTS },
+    ...[...new Set(subscribers.flatMap((subscriber) => subscriber.interests))]
+      .sort()
+      .map((interest) => ({ label: interest, value: interest })),
+  ]
 
   function applyBulkStatus() {
     if (!bulkStatus) return
@@ -204,6 +246,22 @@ export function SubscriberTable({ subscribers, statuses }: { subscribers: Subscr
       })
       setRowSelection({})
       setBulkStatus(null)
+    })
+  }
+
+  function applyBulkSegment() {
+    const segment = segments.find((item) => item.id === bulkSegment)
+    if (!segment) return
+    startTransition(async () => {
+      const result = await addToSegment({ segmentId: segment.id, subscriberIds: selectedIds })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      const count = selectedIds.length
+      toast.success(`Added ${count} ${count === 1 ? "subscriber" : "subscribers"} to ${segment.name}`)
+      setRowSelection({})
+      setBulkSegment(null)
     })
   }
 
@@ -258,6 +316,24 @@ export function SubscriberTable({ subscribers, statuses }: { subscribers: Subscr
             </SelectGroup>
           </SelectContent>
         </Select>
+        <Select
+          items={interestItems}
+          value={interestFilter}
+          onValueChange={(value) => setInterestFilter(value ?? ALL_INTERESTS)}
+        >
+          <SelectTrigger aria-label="Filter by interest" className="w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {interestItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
         {selectedIds.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
             <span className="text-sm text-muted-foreground">{selectedIds.length} selected</span>
@@ -283,6 +359,31 @@ export function SubscriberTable({ subscribers, statuses }: { subscribers: Subscr
               {isPending && <Spinner data-icon="inline-start" />}
               Apply
             </Button>
+            {segments.length > 0 && (
+              <>
+                <Select
+                  items={segments.map((segment) => ({ label: segment.name, value: segment.id }))}
+                  value={bulkSegment}
+                  onValueChange={setBulkSegment}
+                >
+                  <SelectTrigger aria-label="Add to segment" className="w-48">
+                    <SelectValue placeholder="Add to segment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {segments.map((segment) => (
+                        <SelectItem key={segment.id} value={segment.id}>
+                          {segment.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Button variant="secondary" onClick={applyBulkSegment} disabled={!bulkSegment || isPending}>
+                  Add
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>

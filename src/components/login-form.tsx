@@ -59,6 +59,14 @@ export function LoginForm({
               <AlertDescription>We couldn&apos;t send the link. Try again in a minute.</AlertDescription>
             </Alert>
           )}
+          {state.status === "rate_limited" && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Too many sign-in emails have gone out. Try again in about an hour, or use the most
+                recent link in your inbox.
+              </AlertDescription>
+            </Alert>
+          )}
           {state.status === "sent" ? (
             <Alert>
               <AlertTitle>Check your email</AlertTitle>

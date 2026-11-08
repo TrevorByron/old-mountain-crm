@@ -9,6 +9,15 @@ export const AIRTABLE_FIELDS = {
   status: "fldYGqTXTjAHoG318",
   segments: "fldLh5eIdoh21y42K",
   source: "fldNn1GyzBPJ8IihH",
+  phone: "fldRbBvs0Jaba7hHV",
+  accountOwner: "fldZbMlvt0YccrSQ7",
+  tripType: "fldqqLCOJx7LHGTNc",
+  departureWindow: "fldKNjc6MYjbSKMnE",
+  groupSize: "fldN9ATF2eg0r9Yzb",
+  interests: "fldEZFFz345uVULM7",
+  interestsOther: "fld5nBbpGbXPjXPGd",
+  objections: "fldGPw0Ivh8WDYCgo",
+  objectionsOther: "fldnxSv50TniTS7ys",
 } as const
 
 const API_URL = "https://api.airtable.com/v0"
@@ -51,21 +60,30 @@ async function airtableFetch(url: string, init: RequestInit = {}, attempt = 0): 
 }
 
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value : null)
+const list = (value: unknown) => (Array.isArray(value) ? value.filter((item) => typeof item === "string") : [])
 
 export function parseContact(record: AirtableRecord): AirtableContact {
-  const segments = record.fields[AIRTABLE_FIELDS.segments]
   return {
     recordId: record.id,
     createdTime: record.createdTime,
     name: text(record.fields[AIRTABLE_FIELDS.name]),
     email: text(record.fields[AIRTABLE_FIELDS.email]),
     status: text(record.fields[AIRTABLE_FIELDS.status]),
-    segments: Array.isArray(segments) ? segments.filter((segment) => typeof segment === "string") : [],
+    segments: list(record.fields[AIRTABLE_FIELDS.segments]),
     source: text(record.fields[AIRTABLE_FIELDS.source]),
+    phone: text(record.fields[AIRTABLE_FIELDS.phone]),
+    accountOwner: text(record.fields[AIRTABLE_FIELDS.accountOwner]),
+    tripType: text(record.fields[AIRTABLE_FIELDS.tripType]),
+    departureWindow: text(record.fields[AIRTABLE_FIELDS.departureWindow]),
+    groupSize: text(record.fields[AIRTABLE_FIELDS.groupSize]),
+    interests: list(record.fields[AIRTABLE_FIELDS.interests]),
+    interestsOther: text(record.fields[AIRTABLE_FIELDS.interestsOther]),
+    objections: list(record.fields[AIRTABLE_FIELDS.objections]),
+    objectionsOther: text(record.fields[AIRTABLE_FIELDS.objectionsOther]),
   }
 }
 
-// Reads only the mapped fields. Phone, objections and other notes never leave Airtable.
+// Every column except the opt-out checkbox, which only ever flows out of the app.
 export async function listContacts() {
   const contacts: AirtableContact[] = []
   let offset: string | undefined

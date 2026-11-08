@@ -8,9 +8,31 @@ export type AirtableContact = {
   status: string | null
   segments: string[]
   source: string | null
+  phone: string | null
+  accountOwner: string | null
+  tripType: string | null
+  departureWindow: string | null
+  groupSize: string | null
+  interests: string[]
+  interestsOther: string | null
+  objections: string[]
+  objectionsOther: string | null
 }
 
-export type ExistingSubscriber = {
+// Copied as they are, one to one with the Airtable columns.
+type ContactDetails = {
+  phone: string | null
+  account_owner: string | null
+  trip_type: string | null
+  departure_window: string | null
+  group_size: string | null
+  interests: string[]
+  interests_other: string | null
+  objections: string[]
+  objections_other: string | null
+}
+
+export type ExistingSubscriber = ContactDetails & {
   id: string
   email: string
   first_name: string | null
@@ -24,7 +46,7 @@ export type ExistingSubscriber = {
 
 // Only ever contains columns Airtable owns. unsubscribed_at and suppressed are
 // deliberately absent, so a sync has no way to write them.
-export type SubscriberFields = {
+export type SubscriberFields = ContactDetails & {
   email: string
   first_name: string | null
   last_name: string | null
@@ -69,6 +91,9 @@ export function cleanSegments(segments: string[]) {
   const names = segments.map((segment) => segment.trim()).filter(Boolean)
   return [...new Set(names.filter((name) => !emailSchema.safeParse(name).success))]
 }
+
+const cleanText = (value: string | null) => value?.trim() || null
+const cleanList = (values: string[]) => [...new Set(values.map((value) => value.trim()).filter(Boolean))]
 
 function sameList(a: string[], b: string[]) {
   return a.length === b.length && a.every((value, index) => value === b[index])
@@ -126,9 +151,18 @@ export function planSync(
       email,
       ...splitName(contact.name),
       status,
-      source: contact.source?.trim() || null,
+      source: cleanText(contact.source),
       segments: cleanSegments(contact.segments),
       airtable_record_id: contact.recordId,
+      phone: cleanText(contact.phone),
+      account_owner: cleanText(contact.accountOwner),
+      trip_type: cleanText(contact.tripType),
+      departure_window: cleanText(contact.departureWindow),
+      group_size: cleanText(contact.groupSize),
+      interests: cleanList(contact.interests),
+      interests_other: cleanText(contact.interestsOther),
+      objections: cleanList(contact.objections),
+      objections_other: cleanText(contact.objectionsOther),
     }
 
     if (!match) {
@@ -143,9 +177,11 @@ export function planSync(
     }
 
     const changed = (Object.keys(fields) as (keyof SubscriberFields)[]).filter((key) => {
-      if (key === "segments") return !sameList(fields.segments, match.segments)
       if (key === "email") return fields.email !== match.email.toLowerCase()
-      return fields[key] !== match[key]
+      const value = fields[key]
+      const current = match[key]
+      if (Array.isArray(value) && Array.isArray(current)) return !sameList(value, current)
+      return value !== current
     })
 
     if (changed.length === 0) plan.unchanged += 1

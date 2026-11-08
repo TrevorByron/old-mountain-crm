@@ -9,7 +9,7 @@
         "-p",
         "node@22",
         "-c",
-        "node node_modules/next/dist/bin/next dev -p 3100"
+        "node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p 3100"
       ],
       "port": 3100
     }

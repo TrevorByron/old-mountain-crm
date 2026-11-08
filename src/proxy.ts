@@ -1,10 +1,13 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+import { devAuthEmail } from "@/lib/dev-auth"
 import { requireEnv } from "@/lib/env"
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
+
+  if (devAuthEmail()) return response
 
   const supabase = createServerClient(
     requireEnv("NEXT_PUBLIC_SUPABASE_URL"),

@@ -42,6 +42,15 @@ const FIELD_MAPPING = [
   { airtable: "Segment", app: "Segments (read-only, email addresses dropped)" },
   { airtable: "How did you hear about Old Mountain?", app: "Source" },
   { airtable: "Record created time", app: "Signup date" },
+  { airtable: "Phone", app: "Phone (read-only)" },
+  { airtable: "Account Owner", app: "Account owner (read-only)" },
+  { airtable: "Trip Type", app: "Trip type (read-only)" },
+  { airtable: "Which departure window interests you?", app: "Departure window (read-only)" },
+  { airtable: "Group Size", app: "Group size (read-only)" },
+  { airtable: "What excites you about the idea of Tanzania?", app: "Interests (read-only)" },
+  { airtable: "Client entered excitement", app: "Interests, in their words (read-only)" },
+  { airtable: "Objections", app: "Objections (read-only)" },
+  { airtable: "Objections - Other", app: "Objections, in their words (read-only)" },
 ]
 
 const SKIP_LABELS: Record<SkipReason, string> = {

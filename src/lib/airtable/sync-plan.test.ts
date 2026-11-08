@@ -13,6 +13,15 @@ function contact(overrides: Partial<AirtableContact> = {}): AirtableContact {
     status: "New",
     segments: ["Leads - 2027"],
     source: "Instagram",
+    phone: null,
+    accountOwner: null,
+    tripType: "Group",
+    departureWindow: "July 2027",
+    groupSize: null,
+    interests: ["Wildlife photography"],
+    interestsOther: null,
+    objections: [],
+    objectionsOther: null,
     ...overrides,
   }
 }
@@ -28,11 +37,46 @@ function subscriber(overrides: Partial<ExistingSubscriber> = {}): ExistingSubscr
     segments: ["Leads - 2027"],
     airtable_record_id: "recMaraOkafor0001",
     airtable_push_pending: false,
+    phone: null,
+    account_owner: null,
+    trip_type: "Group",
+    departure_window: "July 2027",
+    group_size: null,
+    interests: ["Wildlife photography"],
+    interests_other: null,
+    objections: [],
+    objections_other: null,
     ...overrides,
   }
 }
 
 describe("planSync", () => {
+  it("copies form answers on create, trimming Airtable's stray spaces", () => {
+    const plan = planSync(
+      [contact({ accountOwner: "Trevor ", interests: ["Tented Camps ", "Tented Camps"], objectionsOther: "  " })],
+      [],
+      STATUSES
+    )
+    expect(plan.creates[0]).toMatchObject({
+      account_owner: "Trevor",
+      trip_type: "Group",
+      interests: ["Tented Camps"],
+      objections_other: null,
+    })
+  })
+
+  it("updates a contact when only a form answer changed", () => {
+    const plan = planSync([contact({ interests: ["New foods"], groupSize: "2 people" })], [subscriber()], STATUSES)
+    expect(plan.unchanged).toBe(0)
+    expect(plan.updates[0].changed).toEqual(["group_size", "interests"])
+  })
+
+  it("never copies the opt-out checkbox", () => {
+    const plan = planSync([contact()], [], STATUSES)
+    expect(plan.creates[0]).not.toHaveProperty("unsubscribed_at")
+    expect(plan.creates[0]).not.toHaveProperty("suppressed")
+  })
+
   it("creates new contacts and keeps the original signup date", () => {
     const plan = planSync([contact()], [], STATUSES)
     expect(plan.creates).toHaveLength(1)

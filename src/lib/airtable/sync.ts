@@ -17,7 +17,9 @@ async function loadPlanInputs() {
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await admin
       .from("subscribers")
-      .select("id, email, first_name, last_name, status, source, segments, airtable_record_id, airtable_push_pending")
+      .select(
+        "id, email, first_name, last_name, status, source, segments, airtable_record_id, airtable_push_pending, phone, account_owner, trip_type, departure_window, group_size, interests, interests_other, objections, objections_other"
+      )
       .order("id")
       .range(from, from + PAGE_SIZE - 1)
     if (error) throw new Error(error.message)

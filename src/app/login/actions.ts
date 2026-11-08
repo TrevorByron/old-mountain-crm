@@ -7,7 +7,7 @@ import { requireEnv } from "@/lib/env"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 
-export type LoginState = { status: "idle" | "sent" | "invalid" | "error" }
+export type LoginState = { status: "idle" | "sent" | "invalid" | "rate_limited" | "error" }
 
 export async function sendMagicLink(_previous: LoginState, formData: FormData): Promise<LoginState> {
   const email = z.email().safeParse(String(formData.get("email") ?? "").trim().toLowerCase())
@@ -27,6 +27,7 @@ export async function sendMagicLink(_previous: LoginState, formData: FormData): 
       email: email.data,
       options: { emailRedirectTo: `${requireEnv("APP_URL")}/auth/confirm` },
     })
+    if (error?.code === "over_email_send_rate_limit") return { status: "rate_limited" }
     if (error) return { status: "error" }
   }
   return { status: "sent" }

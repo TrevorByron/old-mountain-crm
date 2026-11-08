@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LogOutIcon, RefreshCwIcon, UsersIcon, UsersRoundIcon } from "lucide-react"
+import { ListFilterIcon, LogOutIcon, RefreshCwIcon, SendIcon, UsersIcon, UsersRoundIcon } from "lucide-react"
 
 import { signOut } from "@/app/login/actions"
 import {
@@ -19,6 +19,8 @@ import {
 
 const NAV_ITEMS = [
   { href: "/subscribers", label: "Subscribers", icon: UsersIcon },
+  { href: "/segments", label: "Segments", icon: ListFilterIcon },
+  { href: "/broadcasts", label: "Broadcasts", icon: SendIcon },
   { href: "/sync", label: "Airtable sync", icon: RefreshCwIcon },
   { href: "/team", label: "Team", icon: UsersRoundIcon },
 ]
