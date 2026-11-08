@@ -1,0 +1,157 @@
+import { z } from "zod"
+
+export type AirtableContact = {
+  recordId: string
+  createdTime: string
+  name: string | null
+  email: string | null
+  status: string | null
+  segments: string[]
+  source: string | null
+}
+
+export type ExistingSubscriber = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  status: string | null
+  source: string | null
+  segments: string[]
+  airtable_record_id: string | null
+  airtable_push_pending: boolean
+}
+
+// Only ever contains columns Airtable owns. unsubscribed_at and suppressed are
+// deliberately absent, so a sync has no way to write them.
+export type SubscriberFields = {
+  email: string
+  first_name: string | null
+  last_name: string | null
+  status: string | null
+  source: string | null
+  segments: string[]
+  airtable_record_id: string
+}
+
+export type SkipReason = "no_email" | "invalid_email" | "duplicate_email" | "pending_app_change"
+
+export type SkippedContact = {
+  recordId: string
+  name: string | null
+  email: string | null
+  reason: SkipReason
+}
+
+export type SyncPlan = {
+  creates: (SubscriberFields & { subscribed_at: string })[]
+  updates: { id: string; fields: SubscriberFields; changed: (keyof SubscriberFields)[] }[]
+  unchanged: number
+  skipped: SkippedContact[]
+  unknownStatuses: string[]
+}
+
+const emailSchema = z.email()
+
+export function splitName(name: string | null) {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return { first_name: null, last_name: null }
+  return { first_name: parts[0], last_name: parts.slice(1).join(" ") || null }
+}
+
+export function normalizeEmail(email: string | null) {
+  return email?.trim().toLowerCase() || null
+}
+
+// The Segment field has trailing spaces in its option names, and some options
+// are email addresses that were typed into the field by mistake.
+export function cleanSegments(segments: string[]) {
+  const names = segments.map((segment) => segment.trim()).filter(Boolean)
+  return [...new Set(names.filter((name) => !emailSchema.safeParse(name).success))]
+}
+
+function sameList(a: string[], b: string[]) {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+export function planSync(
+  contacts: AirtableContact[],
+  existing: ExistingSubscriber[],
+  knownStatuses: string[]
+): SyncPlan {
+  const plan: SyncPlan = { creates: [], updates: [], unchanged: 0, skipped: [], unknownStatuses: [] }
+  const byRecordId = new Map(existing.flatMap((row) => (row.airtable_record_id ? [[row.airtable_record_id, row]] : [])))
+  const byEmail = new Map(existing.map((row) => [row.email.toLowerCase(), row]))
+  const statuses = new Set(knownStatuses)
+  const unknownStatuses = new Set<string>()
+  const claimedEmails = new Set<string>()
+
+  // Oldest record first, so the earliest signup wins when an email is duplicated.
+  const ordered = [...contacts].sort((a, b) => a.createdTime.localeCompare(b.createdTime))
+
+  for (const contact of ordered) {
+    const email = normalizeEmail(contact.email)
+    const skip = (reason: SkipReason) =>
+      plan.skipped.push({ recordId: contact.recordId, name: contact.name, email, reason })
+
+    if (!email) {
+      skip("no_email")
+      continue
+    }
+    if (!emailSchema.safeParse(email).success) {
+      skip("invalid_email")
+      continue
+    }
+    if (claimedEmails.has(email)) {
+      skip("duplicate_email")
+      continue
+    }
+
+    const linked = byRecordId.get(contact.recordId)
+    const owner = byEmail.get(email)
+    if (linked && owner && owner.id !== linked.id) {
+      skip("duplicate_email")
+      continue
+    }
+    claimedEmails.add(email)
+
+    const match = linked ?? owner
+    let status = contact.status
+    if (status && !statuses.has(status)) {
+      unknownStatuses.add(status)
+      status = match?.status ?? null
+    }
+
+    const fields: SubscriberFields = {
+      email,
+      ...splitName(contact.name),
+      status,
+      source: contact.source?.trim() || null,
+      segments: cleanSegments(contact.segments),
+      airtable_record_id: contact.recordId,
+    }
+
+    if (!match) {
+      plan.creates.push({ ...fields, subscribed_at: contact.createdTime })
+      continue
+    }
+
+    // An app edit hasn't reached Airtable yet, so Airtable's copy is stale.
+    if (match.airtable_push_pending) {
+      skip("pending_app_change")
+      continue
+    }
+
+    const changed = (Object.keys(fields) as (keyof SubscriberFields)[]).filter((key) => {
+      if (key === "segments") return !sameList(fields.segments, match.segments)
+      if (key === "email") return fields.email !== match.email.toLowerCase()
+      return fields[key] !== match[key]
+    })
+
+    if (changed.length === 0) plan.unchanged += 1
+    else plan.updates.push({ id: match.id, fields, changed })
+  }
+
+  plan.unknownStatuses = [...unknownStatuses]
+  return plan
+}
