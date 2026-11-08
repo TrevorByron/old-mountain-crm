@@ -33,5 +33,5 @@ export async function GET(request: NextRequest) {
     return redirectTo("/login?error=not_invited")
   }
 
-  return redirectTo("/subscribers")
+  return redirectTo("/today")
 }

@@ -10,7 +10,7 @@ const nameSchema = z.string().trim().min(1, "Give the segment a name.").max(120)
 const descriptionSchema = z.string().trim().max(500).optional()
 const DUPLICATE_NAME = "A segment with that name already exists."
 
-const createSchema = z.object({ name: nameSchema, description: descriptionSchema })
+const createSchema = z.object({ name: nameSchema, description: descriptionSchema, rules: segmentRulesSchema.optional() })
 
 export async function createSegment(input: unknown) {
   const parsed = createSchema.safeParse(input)
@@ -19,7 +19,12 @@ export async function createSegment(input: unknown) {
   const { supabase, member } = await requireTeamMember()
   const { data, error } = await supabase
     .from("segments")
-    .insert({ name: parsed.data.name, description: parsed.data.description || null, created_by: member.id })
+    .insert({
+      name: parsed.data.name,
+      description: parsed.data.description || null,
+      rules: parsed.data.rules ?? {},
+      created_by: member.id,
+    })
     .select("id")
     .single()
   if (error) {

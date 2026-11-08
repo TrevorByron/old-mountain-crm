@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   createColumnHelper,
   createPaginatedRowModel,
@@ -32,15 +33,22 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+
+import { LIFECYCLES, lifecycleLabel } from "@/lib/pipeline/stages"
 
 import { addToSegment } from "../segments/actions"
 import { bulkChangeStatus } from "./actions"
-import { SubscriberSheet } from "./subscriber-sheet"
 
 export type Subscriber = {
   id: string
-  email: string
+  email: string | null
+  lifecycle: string
+  last_touch: string | null
+  tags: string[]
+  about: string | null
+  marketing_ok: boolean
   first_name: string | null
   last_name: string | null
   status: string | null
@@ -69,6 +77,7 @@ export function fullName(subscriber: Pick<Subscriber, "first_name" | "last_name"
 const ALL_STATUSES = "__all__"
 const NO_STATUS = "__none__"
 const ALL_INTERESTS = "__all__"
+const ALL_STAGES = "__all__"
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" })
 
 const features = tableFeatures({
@@ -92,6 +101,10 @@ function SortableHeader({ label, onToggle }: { label: string; onToggle?: (event:
 }
 
 function SubscriptionBadge({ subscriber }: { subscriber: Subscriber }) {
+  if (!subscriber.email) return <Badge variant="outline">No email</Badge>
+  if (!subscriber.marketing_ok && !subscriber.unsubscribed_at && !subscriber.suppressed) {
+    return <Badge variant="outline">Not on the list</Badge>
+  }
   if (subscriber.suppressed) return <Badge variant="destructive">Suppressed</Badge>
   if (subscriber.unsubscribed_at) return <Badge variant="outline">Unsubscribed</Badge>
   return <Badge variant="secondary">Subscribed</Badge>
@@ -110,44 +123,40 @@ const columns = helper.columns([
     ),
     cell: ({ row }) => (
       <Checkbox
-        aria-label="Select subscriber"
+        aria-label="Select person"
         checked={row.getIsSelected()}
         onCheckedChange={(checked) => row.toggleSelected(checked)}
         onClick={(event) => event.stopPropagation()}
       />
     ),
   }),
-  helper.accessor((row) => fullName(row), {
+  helper.accessor((row) => fullName(row) || row.email || "", {
     id: "name",
     sortFn: "text",
     header: ({ column }) => <SortableHeader label="Name" onToggle={column.getToggleSortingHandler()} />,
-    cell: ({ getValue }) => getValue() || <span className="text-muted-foreground">No name</span>,
+    cell: ({ row, getValue }) => (
+      <div className="min-w-0">
+        <div className="truncate font-medium">{getValue() || "No name"}</div>
+        <div className="truncate text-xs text-muted-foreground">{row.original.email ?? row.original.phone ?? "No contact details"}</div>
+      </div>
+    ),
   }),
-  helper.accessor("email", {
+  helper.accessor((row) => lifecycleLabel(row.lifecycle), {
+    id: "lifecycle",
     sortFn: "text",
-    header: ({ column }) => <SortableHeader label="Email" onToggle={column.getToggleSortingHandler()} />,
-  }),
-  helper.accessor((row) => row.status ?? "", {
-    id: "status",
-    sortFn: "text",
-    header: ({ column }) => <SortableHeader label="Status" onToggle={column.getToggleSortingHandler()} />,
-    cell: ({ row }) =>
-      row.original.status ? (
-        <Badge variant="secondary">{row.original.status}</Badge>
-      ) : (
-        <span className="text-muted-foreground">None</span>
-      ),
-  }),
-  helper.display({
-    id: "subscription",
-    header: "Subscription",
-    cell: ({ row }) => <SubscriptionBadge subscriber={row.original} />,
+    header: ({ column }) => <SortableHeader label="Relationship" onToggle={column.getToggleSortingHandler()} />,
+    cell: ({ getValue }) => <Badge variant="outline">{getValue()}</Badge>,
   }),
   helper.display({
     id: "interests",
-    header: "Interests",
+    header: "Tags and interests",
     cell: ({ row }) => (
       <div className="flex max-w-72 flex-wrap gap-1">
+        {row.original.tags.map((tag) => (
+          <Badge key={tag} variant="secondary">
+            {tag}
+          </Badge>
+        ))}
         {row.original.interests.map((interest) => (
           <Badge key={interest} variant="outline">
             {interest}
@@ -156,25 +165,25 @@ const columns = helper.columns([
       </div>
     ),
   }),
-  helper.accessor((row) => row.source ?? "", {
-    id: "source",
-    sortFn: "text",
-    header: ({ column }) => <SortableHeader label="Source" onToggle={column.getToggleSortingHandler()} />,
-  }),
-  helper.accessor((row) => new Date(row.subscribed_at), {
-    id: "subscribed_at",
+  helper.accessor((row) => (row.last_touch ? new Date(row.last_touch) : new Date(0)), {
+    id: "last_touch",
     sortFn: "datetime",
-    header: ({ column }) => <SortableHeader label="Signed up" onToggle={column.getToggleSortingHandler()} />,
-    cell: ({ row }) => dateFormat.format(new Date(row.original.subscribed_at)),
+    header: ({ column }) => <SortableHeader label="Last contact" onToggle={column.getToggleSortingHandler()} />,
+    cell: ({ row }) => (row.original.last_touch ? dateFormat.format(new Date(row.original.last_touch)) : <span className="text-muted-foreground">Never</span>),
+  }),
+  helper.display({
+    id: "subscription",
+    header: "Email",
+    cell: ({ row }) => <SubscriptionBadge subscriber={row.original} />,
   }),
 ])
 
-// The table stays usable on a phone by dropping to name, status and subscription state.
+// On a phone the table drops to name and relationship.
 const HIDDEN_ON_SMALL: Record<string, string> = {
-  email: "hidden md:table-cell",
+  select: "hidden sm:table-cell",
   interests: "hidden xl:table-cell",
-  source: "hidden lg:table-cell",
-  subscribed_at: "hidden lg:table-cell",
+  last_touch: "hidden lg:table-cell",
+  subscription: "hidden md:table-cell",
 }
 
 export function SubscriberTable({
@@ -191,9 +200,16 @@ export function SubscriberTable({
   const [interestFilter, setInterestFilter] = useState(ALL_INTERESTS)
   const [bulkStatus, setBulkStatus] = useState<string | null>(null)
   const [bulkSegment, setBulkSegment] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [stageFilter, setStageFilter] = useState(ALL_STAGES)
+  const router = useRouter()
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [isPending, startTransition] = useTransition()
+
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = { [ALL_STAGES]: subscribers.length }
+    for (const subscriber of subscribers) counts[subscriber.lifecycle] = (counts[subscriber.lifecycle] ?? 0) + 1
+    return counts
+  }, [subscribers])
 
   const data = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -203,9 +219,10 @@ export function SubscriberTable({
         return false
       }
       if (interestFilter !== ALL_INTERESTS && !subscriber.interests.includes(interestFilter)) return false
-      return !query || `${fullName(subscriber)} ${subscriber.email}`.toLowerCase().includes(query)
+      if (stageFilter !== ALL_STAGES && subscriber.lifecycle !== stageFilter) return false
+      return !query || `${fullName(subscriber)} ${subscriber.email ?? ""} ${subscriber.phone ?? ""} ${subscriber.tags.join(" ")} ${subscriber.about ?? ""}`.toLowerCase().includes(query)
     })
-  }, [subscribers, search, statusFilter, interestFilter])
+  }, [subscribers, search, statusFilter, interestFilter, stageFilter])
 
   const table = useTable({
     features,
@@ -219,7 +236,15 @@ export function SubscriberTable({
   })
 
   const selectedIds = Object.keys(rowSelection)
-  const editing = subscribers.find((subscriber) => subscriber.id === editingId) ?? null
+  const filtersActive = Boolean(search.trim()) || statusFilter !== ALL_STATUSES || interestFilter !== ALL_INTERESTS || stageFilter !== ALL_STAGES
+
+  function clearFilters() {
+    setSearch("")
+    setStatusFilter(ALL_STATUSES)
+    setInterestFilter(ALL_INTERESTS)
+    setStageFilter(ALL_STAGES)
+  }
+
   const statusItems = [
     { label: "All statuses", value: ALL_STATUSES },
     ...statuses.map((status) => ({ label: status, value: status })),
@@ -241,7 +266,7 @@ export function SubscriberTable({
         return
       }
       const count = selectedIds.length
-      toast.success(`Moved ${count} ${count === 1 ? "subscriber" : "subscribers"} to ${bulkStatus}`, {
+      toast.success(`Moved ${count} ${count === 1 ? "person" : "people"} to ${bulkStatus}`, {
         description: result.warning,
       })
       setRowSelection({})
@@ -259,7 +284,7 @@ export function SubscriberTable({
         return
       }
       const count = selectedIds.length
-      toast.success(`Added ${count} ${count === 1 ? "subscriber" : "subscribers"} to ${segment.name}`)
+      toast.success(`Added ${count} ${count === 1 ? "person" : "people"} to ${segment.name}`)
       setRowSelection({})
       setBulkSegment(null)
     })
@@ -272,7 +297,7 @@ export function SubscriberTable({
           <EmptyMedia variant="icon">
             <UsersIcon />
           </EmptyMedia>
-          <EmptyTitle>No subscribers yet</EmptyTitle>
+          <EmptyTitle>No one here yet</EmptyTitle>
           <EmptyDescription>Preview your Airtable contacts and commit the first import to get started.</EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
@@ -286,11 +311,25 @@ export function SubscriberTable({
 
   return (
     <div className="flex flex-col gap-4">
+      <ToggleGroup
+        variant="outline"
+        aria-label="Filter by relationship"
+        className="flex-wrap"
+        value={[stageFilter]}
+        onValueChange={(value: string[]) => setStageFilter(value[0] ?? ALL_STAGES)}
+      >
+        <ToggleGroupItem value={ALL_STAGES}>Everyone ({stageCounts[ALL_STAGES] ?? 0})</ToggleGroupItem>
+        {LIFECYCLES.map((item) => (
+          <ToggleGroupItem key={item.key} value={item.key}>
+            {item.label}s ({stageCounts[item.key] ?? 0})
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
       <div className="flex flex-wrap items-center gap-2">
-        <InputGroup className="w-full sm:max-w-xs">
+        <InputGroup className="w-full sm:max-w-sm">
           <InputGroupInput
-            aria-label="Search by name or email"
-            placeholder="Search name or email"
+            aria-label="Search people"
+            placeholder="Search name, email, phone, tag or notes"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -334,9 +373,21 @@ export function SubscriberTable({
             </SelectGroup>
           </SelectContent>
         </Select>
-        {selectedIds.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-            <span className="text-sm text-muted-foreground">{selectedIds.length} selected</span>
+        <div className="flex items-center gap-2 sm:ml-auto">
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {data.length} of {subscribers.length}
+          </span>
+          {filtersActive && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-accent p-2">
+          <span className="px-1 text-sm font-medium">{selectedIds.length} selected</span>
             <Select
               items={statuses.map((status) => ({ label: status, value: status }))}
               value={bulkStatus}
@@ -384,9 +435,11 @@ export function SubscriberTable({
                 </Button>
               </>
             )}
-          </div>
-        )}
-      </div>
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setRowSelection({})}>
+            Clear selection
+          </Button>
+        </div>
+      )}
 
       <div className="rounded-lg border bg-card">
         <Table>
@@ -405,7 +458,7 @@ export function SubscriberTable({
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  No subscribers match that search and filter.
+                  No one matches that search and filter.
                 </TableCell>
               </TableRow>
             ) : (
@@ -414,7 +467,7 @@ export function SubscriberTable({
                   key={row.id}
                   data-state={row.getIsSelected() ? "selected" : undefined}
                   className="cursor-pointer"
-                  onClick={() => setEditingId(row.original.id)}
+                  onClick={() => router.push(`/subscribers/${row.original.id}`)}
                 >
                   {row.getAllCells().map((cell) => (
                     <TableCell key={cell.id} className={HIDDEN_ON_SMALL[cell.column.id]}>
@@ -441,8 +494,6 @@ export function SubscriberTable({
           </Button>
         </div>
       </div>
-
-      <SubscriberSheet subscriber={editing} statuses={statuses} onClose={() => setEditingId(null)} />
     </div>
   )
 }

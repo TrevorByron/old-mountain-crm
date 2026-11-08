@@ -1,5 +1,6 @@
 "use client"
 
+import { Trash2Icon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
 import { toast } from "sonner"
@@ -13,17 +14,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { LAYOUTS, type LayoutKey } from "@/lib/broadcasts/content"
+import { LAYOUTS } from "@/lib/broadcasts/content"
 
-import { createBroadcast } from "./actions"
+import { createBroadcast, deleteTemplate } from "./actions"
 
-export function NewBroadcastDialog() {
+export type TemplateOption = { id: string; name: string; layout_key: string }
+
+export function NewBroadcastDialog({
+  templates,
+  segmentId = null,
+  label = "New campaign",
+}: {
+  templates: TemplateOption[]
+  segmentId?: string | null
+  label?: string
+}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const custom = templates.filter((template) => template.layout_key === "custom")
 
-  function create(layout: LayoutKey) {
+  function create(id: string) {
     startTransition(async () => {
-      const result = await createBroadcast(layout)
+      const result = await createBroadcast({ templateId: id, segmentId })
       if (!result.ok) {
         toast.error(result.error)
         return
@@ -32,26 +44,52 @@ export function NewBroadcastDialog() {
     })
   }
 
+  function remove(id: string) {
+    startTransition(async () => {
+      const result = await deleteTemplate(id)
+      if (!result.ok) toast.error(result.error)
+      else router.refresh()
+    })
+  }
+
+  const option = (id: string, name: string, description: string) => (
+    <Button
+      variant="outline"
+      className="h-auto flex-1 flex-col items-start gap-0.5 py-3 text-left whitespace-normal"
+      disabled={isPending}
+      onClick={() => create(id)}
+    >
+      <span className="font-medium">{name}</span>
+      <span className="font-normal text-muted-foreground">{description}</span>
+    </Button>
+  )
+
   return (
     <Dialog>
-      <DialogTrigger render={<Button />}>New broadcast</DialogTrigger>
+      <DialogTrigger render={<Button />}>{label}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Start from a template</DialogTitle>
-          <DialogDescription>You can switch layouts while you write.</DialogDescription>
+          <DialogDescription>Every block can be changed, moved or removed once you&apos;re in.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">
-          {LAYOUTS.map((layout) => (
-            <Button
-              key={layout.key}
-              variant="outline"
-              className="h-auto flex-col items-start gap-0.5 py-3 text-left whitespace-normal"
-              disabled={isPending}
-              onClick={() => create(layout.key)}
-            >
-              <span className="font-medium">{layout.name}</span>
-              <span className="font-normal text-muted-foreground">{layout.description}</span>
-            </Button>
+          {LAYOUTS.flatMap((layout) => {
+            const template = templates.find((item) => item.layout_key === layout.key)
+            return template ? [<div key={layout.key} className="flex">{option(template.id, layout.name, layout.description)}</div>] : []
+          })}
+          {custom.map((template) => (
+            <div key={template.id} className="flex items-center gap-2">
+              {option(template.id, template.name, "Saved template")}
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete template ${template.name}`}
+                disabled={isPending}
+                onClick={() => remove(template.id)}
+              >
+                <Trash2Icon />
+              </Button>
+            </div>
           ))}
         </div>
       </DialogContent>

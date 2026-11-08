@@ -10,6 +10,7 @@ export const RULE_FIELDS = [
   { key: "statuses", label: "Status", column: "status" },
   { key: "airtable_segments", label: "Airtable segment", column: "segments" },
   { key: "account_owners", label: "Account owner", column: "account_owner" },
+  { key: "tags", label: "Your tags", column: "tags" },
 ] as const
 
 export type RuleKey = (typeof RULE_FIELDS)[number]["key"]
@@ -26,7 +27,12 @@ export const segmentRulesSchema = z.object({
   statuses: values,
   airtable_segments: values,
   account_owners: values,
+  tags: values,
   keywords: values,
+  lifecycles: values,
+  plan_stages: values,
+  trips: values,
+  not_on_trips: values,
 })
 
 export type SegmentRules = z.output<typeof segmentRulesSchema>
@@ -47,10 +53,23 @@ export function parseKeywords(input: string) {
   return [...new Set(input.split(",").map((keyword) => keyword.trim()).filter(Boolean))]
 }
 
-export function describeRules(rules: SegmentRules) {
+export const JOURNEY_RULES = [
+  { key: "lifecycles", label: "Relationship" },
+  { key: "plan_stages", label: "Has a trip plan at" },
+  { key: "trips", label: "Joined trip" },
+  { key: "not_on_trips", label: "Hasn't joined trip" },
+] as const
+
+export type JourneyRuleKey = (typeof JOURNEY_RULES)[number]["key"]
+
+// `names` turns stored values like trip ids and stage keys into words.
+export function describeRules(rules: SegmentRules, names: Record<string, string> = {}) {
   const parts = RULE_FIELDS.flatMap(({ key, label }) =>
     rules[key].length > 0 ? [`${label}: ${rules[key].join(" or ")}`] : []
   )
+  for (const { key, label } of JOURNEY_RULES) {
+    if (rules[key].length > 0) parts.push(`${label}: ${rules[key].map((value) => names[value] ?? value).join(" or ")}`)
+  }
   if (rules.keywords.length > 0) parts.push(`Wrote about: ${rules.keywords.join(" or ")}`)
   return parts.join(" · ")
 }

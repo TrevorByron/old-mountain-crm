@@ -38,7 +38,7 @@ export type SyncRun = {
 const FIELD_MAPPING = [
   { airtable: "Name", app: "First name, last name (split at the first space)" },
   { airtable: "Email", app: "Email (deduped, case-insensitive)" },
-  { airtable: "Status", app: "Status" },
+  { airtable: "Status", app: "Status, for new contacts only. After that the app owns it." },
   { airtable: "Segment", app: "Segments (read-only, email addresses dropped)" },
   { airtable: "How did you hear about Old Mountain?", app: "Source" },
   { airtable: "Record created time", app: "Signup date" },
@@ -120,7 +120,7 @@ export function SyncPanel({ runs }: { runs: SyncRun[] }) {
                   <TableCell className="text-right tabular-nums">{preview.total}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>New subscribers</TableCell>
+                  <TableCell>New people</TableCell>
                   <TableCell className="text-right tabular-nums">{plan.creates.length}</TableCell>
                 </TableRow>
                 <TableRow>

@@ -26,7 +26,9 @@ To skip sign-in while building, set `DEV_AUTH_EMAIL` in `.env.local` to a team m
 
 | Data | Lives in | Direction |
 |---|---|---|
-| Name, email, status, source, segments, phone, account owner and form answers | Airtable, copied to Supabase | Airtable to app. App edits to name, email and status are written back. |
+| Name, email, source, segments, phone, account owner and form answers | Airtable, copied to Supabase | Airtable to app. App edits to name and email are written back. |
+| Status | The app | Airtable's value only sets a new contact's starting status |
+| Trips, trip plans, stages, payments, activity | Supabase only | None |
 | Sends, events, journeys, broadcasts | Supabase only | None |
 | Unsubscribed and suppressed | Supabase decides | App to Airtable, if `AIRTABLE_OPT_OUT_FIELD_ID` is set |
 
@@ -71,6 +73,26 @@ This is enough for existing team members to sign in, but Supabase's built-in ema
 2. Set `AIRTABLE_TOKEN`, `AIRTABLE_BASE_ID` and `AIRTABLE_TABLE_ID`.
 3. Optional: add a checkbox field such as "Email opt-out" and put its field id in `AIRTABLE_OPT_OUT_FIELD_ID`, so opt-outs are visible in Airtable.
 
+## CRM
+
+Follows someone from first interest to repeat trip. Stages are set by hand for now.
+
+- **Person:** a row in `subscribers`. Email is optional, because a traveling spouse may not have one; they just can't receive email.
+- **Trip:** a departure or custom safari, with dates, seats, price and terms.
+- **Trip plan:** one person or group pursuing one trip. Someone who books twice has two plans and one history.
+- **Payment:** entered by hand. Paid, balance and overdue are worked out from these in `src/lib/pipeline/stages.ts`.
+- **Activity:** the log. Stage, itinerary and payment changes record themselves through database triggers, so they can't be skipped.
+
+**Overall stage** (Subscriber, Prospect, Customer, Past guest) isn't stored. The `contact_lifecycle` view takes the furthest stage any of their plans has reached, so a past guest with a new inquiry stays a past guest and correcting a mistaken stage corrects it too.
+
+**Today** (`/today`) is the home page: everything waiting on the team, from `loadAttention` in `src/lib/pipeline/attention.ts`, which also drives the nav badge.
+
+**The profile** at `/subscribers/[id]` is the place to look someone up: last contact, what's next, trips and money, your own notes and tags, form answers, and a full timeline. Press Cmd+K anywhere to find a person. Tags work as a segment rule, and notes are searched by the "Words they wrote" rule.
+
+**Marketing permission:** people added by hand, or as a traveler, stay off marketing sends (`marketing_ok`) until someone ticks the box or they sign up themselves.
+
+Keep passport, medical and card details out of this app: everyone on the team is a full admin. The prep checklist only records that something was handled. There are no automatic backups on Supabase's free plan, which matters more now that payments are recorded here.
+
 ## Segments
 
 A saved segment is a named group that stays current as Airtable changes. Someone is in it if they match its rules or were added by hand (on the segment page, or by selecting people on Subscribers).
@@ -95,13 +117,19 @@ To run sends locally, set `INNGEST_DEV=1` and run:
 npx inngest-cli@latest dev
 ```
 
-### Email design
+### Email builder
 
-The three layouts are in `src/emails/broadcast-email.tsx`, following the brand guidelines in the Old Mountain workspace (`company/brand-guidelines.md`). Inboxes can't load the brand's custom fonts, so headlines use Georgia and labels use Courier New.
+An email is a list of blocks: text, photo, photo beside text, button, logo, divider, space and links. They're edited in the panel on the left, or by clicking them in the preview, and drafts save automatically. The sidebar collapses while you're in the builder to give it room, and the preview lays out at true width and scales to fit. The renderer is in `src/emails/`, the block definitions and brand limits are in `src/lib/broadcasts/blocks.ts`.
 
-Logos and the photo library are in `public/email/` and load from `APP_URL`, so they only appear for recipients once the app is deployed. To add a library photo, resize it to 1200 by 500, strip its metadata, and list it in `src/lib/broadcasts/photos.ts`.
-
-Photos uploaded in the editor are resized, stripped of metadata and stored in the public `email-images` Supabase Storage bucket, so anyone with a photo's link can view it. They aren't deleted automatically, because emails already sent still load them.
+- **Brand limits are enforced at render.** Fonts, colors and sizes come from lists in `blocks.ts`. Anything else in a document, such as formatting pasted from elsewhere, is dropped. Text is stored as a structured document and only known elements are ever output, so no raw HTML reaches an inbox.
+- **Fonts are all ones every inbox can show.** Gmail and most other clients ignore custom web fonts, so the brand's Sunday April and Chainprinter aren't offered. Georgia and Courier New stand in for them.
+- **The footer isn't a block.** The postal address and unsubscribe link are always added and can't be removed.
+- **Photos.** Uploads are stored twice in the public `email-images` Supabase Storage bucket: `originals/` to recenter from, and `crops/` for what the email loads. A real crop is cut because most inboxes ignore CSS image positioning. Anyone with a photo's link can view it, and files aren't deleted automatically because sent emails still load them.
+- **Library photos** live in `public/email/photos/` (default crops) and `public/email/originals/` (for recentering), and are listed in `src/lib/broadcasts/photos.ts`. Logos and library photos load from `APP_URL`, so they only appear for recipients once the app is deployed.
+- **Personalization.** `{{first_name|there}}` becomes their first name, or the words after the bar if there isn't one. It works in text and the subject.
+- **Templates.** The built-in ones are in `starterContent` in `src/lib/broadcasts/content.ts`. Saved ones are rows in `templates` with `layout_key` set to `custom`.
+- **Pre-send check.** `checkBroadcast` lists errors that stop a send, such as a template's placeholder text left in or a link that isn't a web address, and warnings such as missing photo descriptions or an email long enough for Gmail to clip. Each one links to the block it's about.
+- **Links are saved as typed.** A half-typed link can't block autosave. It only reaches an email through `normalizeLink`, which adds `https://` to bare addresses and refuses anything else.
 
 ## Signup endpoint
 

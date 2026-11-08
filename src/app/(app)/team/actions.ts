@@ -31,7 +31,7 @@ export async function inviteMember(input: unknown) {
   // Their access is the row above. If this email fails, they can still request
   // a sign-in link from the login page.
   const { error: inviteError } = await createAdminClient().auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${requireEnv("APP_URL")}/subscribers`,
+    redirectTo: `${requireEnv("APP_URL")}/today`,
   })
   if (inviteError) {
     console.error("Invite email failed:", inviteError.message)

@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
+import { LIFECYCLES, STAGES } from "@/lib/pipeline/stages"
 import { describeRules, segmentRulesSchema } from "@/lib/segments/rules"
 
 import { NewSegmentDialog } from "./new-segment-dialog"
@@ -21,6 +22,14 @@ export default async function SegmentsPage() {
     .order("name")
   if (error) throw new Error(error.message)
 
+  const { data: trips, error: tripsError } = await supabase.from("trips").select("id, name")
+  if (tripsError) throw new Error(tripsError.message)
+  const names = Object.fromEntries([
+    ...trips.map((trip) => [trip.id, trip.name]),
+    ...STAGES.map((stage) => [stage.key, stage.label]),
+    ...LIFECYCLES.map((item) => [item.key, item.label]),
+  ])
+
   const rows = await Promise.all(
     segments.map(async (segment) => {
       const { count, error: countError } = await supabase
@@ -28,13 +37,13 @@ export default async function SegmentsPage() {
         .select("id")
         .limit(1)
       if (countError) throw new Error(countError.message)
-      return { ...segment, people: count ?? 0, rulesText: describeRules(segmentRulesSchema.parse(segment.rules)) }
+      return { ...segment, people: count ?? 0, rulesText: describeRules(segmentRulesSchema.parse(segment.rules), names) }
     })
   )
 
   return (
     <>
-      <PageHeader title="Segments" description="Saved groups of people you can send campaigns to. They update as Airtable changes.">
+      <PageHeader title="Segments" description="Groups of people you can send campaigns to. They stay up to date on their own.">
         <NewSegmentDialog />
       </PageHeader>
       {rows.length === 0 ? (
@@ -65,9 +74,9 @@ export default async function SegmentsPage() {
               </TableHeader>
               <TableBody>
                 {rows.map((segment) => (
-                  <TableRow key={segment.id}>
+                  <TableRow key={segment.id} className="relative">
                     <TableCell>
-                      <Link href={`/segments/${segment.id}`} className="font-medium underline-offset-4 hover:underline">
+                      <Link href={`/segments/${segment.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
                         {segment.name}
                       </Link>
                       {segment.description && <p className="text-muted-foreground">{segment.description}</p>}

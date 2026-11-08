@@ -5,15 +5,14 @@ import { requireEnv } from "@/lib/env"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 import { batchIdempotencyKey, composeEmail, sendConfig, splitBatch, type QueuedSend } from "./compose"
-import type { BroadcastContent, LayoutKey } from "./content"
+import { emailContentSchema } from "./blocks"
 
 // Resend's limit for one batch call.
 const BATCH_SIZE = 100
-const CONTENT_COLUMNS = "subject, preheader, kicker, heading, body_markdown, cta_label, cta_url, image_url, image_alt"
 
 export const BROADCAST_SEND_EVENT = "broadcast/send.requested"
 
-export type Recipient = { sendId: string; subscriberId: string; email: string }
+export type Recipient = { sendId: string; subscriberId: string; email: string; firstName: string | null }
 
 export function resendClient() {
   return new Resend(requireEnv("RESEND_API_KEY"))
@@ -46,7 +45,7 @@ export async function prepareBatch(broadcastId: string) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from("sends")
-    .select("id, subscriber_id, subscribers!inner (email, unsubscribed_at, suppressed)")
+    .select("id, subscriber_id, subscribers!inner (email, first_name, unsubscribed_at, suppressed)")
     .eq("broadcast_id", broadcastId)
     .is("sent_at", null)
     .order("id")
@@ -66,19 +65,20 @@ export async function sendBatch(broadcastId: string, recipients: Recipient[]) {
   const admin = createAdminClient()
   const { data: broadcast, error } = await admin
     .from("broadcasts")
-    .select(`${CONTENT_COLUMNS}, templates (layout_key)`)
+    .select("subject, preheader, content")
     .eq("id", broadcastId)
     .single()
   if (error) throw new Error(error.message)
 
-  const { templates, ...content } = broadcast as unknown as BroadcastContent & {
-    templates: { layout_key: LayoutKey } | null
+  const input = {
+    subject: broadcast.subject as string | null,
+    preheader: broadcast.preheader as string | null,
+    content: emailContentSchema.parse(broadcast.content),
   }
-  const layout = templates?.layout_key ?? "letter"
   const config = sendConfig()
   const emails = await Promise.all(
     recipients.map((recipient) =>
-      composeEmail(layout, content, { id: recipient.subscriberId, email: recipient.email }, config)
+      composeEmail(input, { id: recipient.subscriberId, email: recipient.email, firstName: recipient.firstName }, config)
     )
   )
 

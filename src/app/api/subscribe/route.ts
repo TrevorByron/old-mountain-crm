@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: "Something went wrong" }, { status: 500, headers })
 
   if (inserted.length > 0) await pushToAirtable(inserted[0].id)
+  // Someone the team added by hand has now asked for email themselves. Opt-outs still hold.
+  else await admin.from("subscribers").update({ marketing_ok: true }).eq("email", signup.subscriber.email).eq("marketing_ok", false)
 
   return NextResponse.json({ ok: true }, { headers })
 }

@@ -7,39 +7,46 @@ import { z } from "zod"
 
 import { inngest } from "@/inngest/client"
 import { requireTeamMember } from "@/lib/auth"
+import { emailContentSchema } from "@/lib/broadcasts/blocks"
 import { composeEmail, previewHtml, sendBlockers, sendConfig } from "@/lib/broadcasts/compose"
 import {
-  LAYOUTS,
   audienceFilterSchema,
-  broadcastContentSchema,
+  checkBroadcast,
   isAudienceEmpty,
-  missingContent,
-  type LayoutKey,
+  starterContent,
 } from "@/lib/broadcasts/content"
-import { EMAIL_IMAGES_BUCKET, MAX_UPLOAD_BYTES, prepareEmailPhoto } from "@/lib/broadcasts/photo-upload"
+import { EMAIL_IMAGES_BUCKET, MAX_UPLOAD_BYTES, cropForEmail, prepareOriginal } from "@/lib/broadcasts/photo-upload"
 import { BROADCAST_SEND_EVENT, resendClient } from "@/lib/broadcasts/sending"
+import { requireEnv } from "@/lib/env"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-const layoutSchema = z.enum(LAYOUTS.map((layout) => layout.key) as [LayoutKey, ...LayoutKey[]])
 const idSchema = z.uuid()
+const optionalText = (max: number) =>
+  z.string().max(max).nullish().transform((value) => value?.trim() || null)
 
-const CONTENT_COLUMNS = "subject, preheader, kicker, heading, body_markdown, cta_label, cta_url, image_url, image_alt"
+const createSchema = z.object({ templateId: idSchema, segmentId: idSchema.nullish() })
 
 export async function createBroadcast(input: unknown) {
-  const layout = layoutSchema.safeParse(input)
-  if (!layout.success) return { ok: false as const, error: "Choose a layout." }
+  const parsed = createSchema.safeParse(input)
+  if (!parsed.success) return { ok: false as const, error: "Choose a template." }
 
   const { supabase, member } = await requireTeamMember()
   const { data: template, error: templateError } = await supabase
     .from("templates")
-    .select("id")
-    .eq("layout_key", layout.data)
+    .select("id, layout_key, content")
+    .eq("id", parsed.data.templateId)
     .single()
-  if (templateError) return { ok: false as const, error: "Couldn't find that layout." }
+  if (templateError) return { ok: false as const, error: "Couldn't find that template." }
 
   const { data, error } = await supabase
     .from("broadcasts")
-    .insert({ name: "Untitled broadcast", template_id: template.id, created_by: member.id })
+    .insert({
+      name: "Untitled campaign",
+      template_id: template.id,
+      audience_filter: audienceFilterSchema.parse(parsed.data.segmentId ? { segment_ids: [parsed.data.segmentId] } : {}),
+      created_by: member.id,
+      content: template.content ?? starterContent(template.layout_key),
+    })
     .select("id")
     .single()
   if (error) return { ok: false as const, error: "Couldn't create the broadcast." }
@@ -47,10 +54,12 @@ export async function createBroadcast(input: unknown) {
   return { ok: true as const, id: data.id as string }
 }
 
-const saveSchema = broadcastContentSchema.extend({
+const saveSchema = z.object({
   id: idSchema,
   name: z.string().trim().min(1, "Give the broadcast a name.").max(200),
-  template_id: idSchema,
+  subject: optionalText(200),
+  preheader: optionalText(200),
+  content: emailContentSchema,
   audience_filter: audienceFilterSchema,
 })
 
@@ -74,45 +83,15 @@ export async function saveBroadcast(input: unknown) {
   return { ok: true as const }
 }
 
-export async function uploadPhoto(formData: FormData) {
-  await requireTeamMember()
-
-  const file = formData.get("photo")
-  if (!(file instanceof File) || file.size === 0) return { ok: false as const, error: "Choose a photo to upload." }
-  if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: "That photo is too large. Try a smaller one." }
-
-  let photo: Buffer
-  try {
-    photo = await prepareEmailPhoto(Buffer.from(await file.arrayBuffer()))
-  } catch {
-    return { ok: false as const, error: "Couldn't read that file. Try a JPG or PNG." }
-  }
-
-  const storage = createAdminClient().storage.from(EMAIL_IMAGES_BUCKET)
-  const path = `${randomUUID()}.jpg`
-  const { error } = await storage.upload(path, photo, { contentType: "image/jpeg" })
-  if (error) {
-    console.error("Photo upload failed:", error.message)
-    return { ok: false as const, error: "Couldn't upload the photo. Try again." }
-  }
-  return { ok: true as const, url: storage.getPublicUrl(path).data.publicUrl }
-}
-
-// A half-typed link shouldn't blank the preview, so it's left out until it's valid.
-const previewSchema = z.object({
-  layout: layoutSchema,
-  content: broadcastContentSchema.extend({
-    cta_url: broadcastContentSchema.shape.cta_url.catch(null),
-    image_url: broadcastContentSchema.shape.image_url.catch(null),
-  }),
-})
+const previewSchema = z.object({ preheader: optionalText(200), content: emailContentSchema })
 
 export async function previewBroadcast(input: unknown) {
   const parsed = previewSchema.safeParse(input)
   if (!parsed.success) return null
 
   await requireTeamMember()
-  return previewHtml(parsed.data.layout, parsed.data.content)
+  const html = await previewHtml(parsed.data.content, parsed.data.preheader)
+  return { html, bytes: Buffer.byteLength(html) }
 }
 
 export async function countAudience(input: unknown) {
@@ -124,28 +103,95 @@ export async function countAudience(input: unknown) {
   return error ? null : (data as number)
 }
 
+function publicUrlPrefix() {
+  return `${requireEnv("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/public/${EMAIL_IMAGES_BUCKET}/originals/`
+}
+
+async function storePhoto(folder: string, photo: Buffer) {
+  const storage = createAdminClient().storage.from(EMAIL_IMAGES_BUCKET)
+  const path = `${folder}/${randomUUID()}.jpg`
+  const { error } = await storage.upload(path, photo, { contentType: "image/jpeg" })
+  if (error) throw new Error(error.message)
+  return storage.getPublicUrl(path).data.publicUrl
+}
+
+export async function uploadPhoto(formData: FormData) {
+  await requireTeamMember()
+
+  const file = formData.get("photo")
+  if (!(file instanceof File) || file.size === 0) return { ok: false as const, error: "Choose a photo to upload." }
+  if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: "That photo is too large. Try a smaller one." }
+
+  let original: Buffer
+  let display: Buffer
+  try {
+    original = await prepareOriginal(Buffer.from(await file.arrayBuffer()))
+    display = await cropForEmail(original, null)
+  } catch {
+    return { ok: false as const, error: "Couldn't read that file. Try a JPG or PNG." }
+  }
+
+  try {
+    return { ok: true as const, source: await storePhoto("originals", original), src: await storePhoto("crops", display) }
+  } catch (error) {
+    console.error("Photo upload failed:", error)
+    return { ok: false as const, error: "Couldn't upload the photo. Try again." }
+  }
+}
+
+const cropSchema = z.object({
+  source: z.string().max(2000),
+  area: z.object({
+    x: z.number().min(0).max(100),
+    y: z.number().min(0).max(100),
+    width: z.number().min(0.1).max(100),
+    height: z.number().min(0.1).max(100),
+  }),
+})
+
+// Only reads photos from this app: library originals and our own uploads, never any other address.
+function sourceUrl(source: string) {
+  if (/^\/email\/originals\/[\w-]+\.jpg$/.test(source)) return `${requireEnv("APP_URL")}${source}`
+  const prefix = publicUrlPrefix()
+  if (source.startsWith(prefix) && /^[\w-]+\.jpg$/.test(source.slice(prefix.length))) return source
+  return null
+}
+
+export async function cropPhoto(input: unknown) {
+  const parsed = cropSchema.safeParse(input)
+  if (!parsed.success) return { ok: false as const, error: "Couldn't crop that photo." }
+
+  await requireTeamMember()
+  const url = sourceUrl(parsed.data.source)
+  if (!url) return { ok: false as const, error: "Couldn't crop that photo." }
+
+  try {
+    const response = await fetch(url, { cache: "no-store" })
+    if (!response.ok) throw new Error(`Photo request failed with status ${response.status}`)
+    const cropped = await cropForEmail(Buffer.from(await response.arrayBuffer()), parsed.data.area)
+    return { ok: true as const, src: await storePhoto("crops", cropped) }
+  } catch (error) {
+    console.error("Photo crop failed:", error)
+    return { ok: false as const, error: "Couldn't crop that photo. Try again." }
+  }
+}
+
 async function loadBroadcast(supabase: Awaited<ReturnType<typeof requireTeamMember>>["supabase"], id: string) {
   const { data, error } = await supabase
     .from("broadcasts")
-    .select(`id, state, scheduled_at, audience_filter, ${CONTENT_COLUMNS}, templates (layout_key)`)
+    .select("id, state, scheduled_at, audience_filter, subject, preheader, content")
     .eq("id", id)
     .maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) return null
 
-  const { templates, audience_filter, state, scheduled_at, ...content } = data as unknown as {
-    templates: { layout_key: LayoutKey } | null
-    audience_filter: unknown
-    state: string
-    scheduled_at: string | null
-    id: string
-  } & Record<string, string | null>
   return {
-    state,
-    scheduledAt: scheduled_at,
-    layout: templates?.layout_key ?? ("letter" as LayoutKey),
-    filter: audienceFilterSchema.parse(audience_filter),
-    content: broadcastContentSchema.parse(content),
+    state: data.state as string,
+    scheduledAt: data.scheduled_at as string | null,
+    filter: audienceFilterSchema.parse(data.audience_filter),
+    subject: data.subject as string | null,
+    preheader: data.preheader as string | null,
+    content: emailContentSchema.parse(data.content ?? {}),
   }
 }
 
@@ -161,12 +207,12 @@ export async function sendTest(id: string) {
   const { supabase, member } = await requireTeamMember()
   const broadcast = await loadBroadcast(supabase, id)
   if (!broadcast) return { ok: false as const, error: "Couldn't find that broadcast." }
-  const missing = missingContent(broadcast.content, broadcast.layout)
-  if (missing.length > 0) return { ok: false as const, error: missing[0] }
+  const { errors } = checkBroadcast(broadcast)
+  if (errors.length > 0) return { ok: false as const, error: errors[0] }
 
   const { data: self, error: selfError } = await supabase
     .from("subscribers")
-    .select("unsubscribed_at, suppressed")
+    .select("first_name, unsubscribed_at, suppressed")
     .eq("email", member.email)
     .maybeSingle()
   if (selfError) return { ok: false as const, error: "Couldn't check your address." }
@@ -174,9 +220,12 @@ export async function sendTest(id: string) {
     return { ok: false as const, error: `${member.email} is unsubscribed or suppressed, so it can't receive tests.` }
   }
 
-  const email = await composeEmail(broadcast.layout, broadcast.content, { id: member.id, email: member.email }, sendConfig(), {
-    subjectPrefix: "[Test] ",
-  })
+  const email = await composeEmail(
+    broadcast,
+    { id: member.id, email: member.email, firstName: self?.first_name ?? member.name?.split(" ")[0] ?? null },
+    sendConfig(),
+    { subjectPrefix: "[Test] " }
+  )
   const { error } = await resendClient().emails.send(email)
   if (error) return { ok: false as const, error: `Resend: ${error.message}` }
   return { ok: true as const, sentTo: member.email as string }
@@ -200,8 +249,8 @@ export async function queueBroadcast(input: unknown) {
   const broadcast = await loadBroadcast(supabase, id)
   if (!broadcast || broadcast.state !== "draft") return { ok: false as const, error: "Only drafts can be sent." }
 
-  const missing = missingContent(broadcast.content, broadcast.layout)
-  if (missing.length > 0) return { ok: false as const, error: missing[0] }
+  const { errors } = checkBroadcast(broadcast)
+  if (errors.length > 0) return { ok: false as const, error: errors[0] }
   if (isAudienceEmpty(broadcast.filter)) return { ok: false as const, error: "Choose who this goes to." }
 
   const { data: count, error: countError } = await supabase.rpc("count_broadcast_audience", {
@@ -287,6 +336,57 @@ export async function deleteBroadcast(id: string) {
   const { supabase } = await requireTeamMember()
   const { data, error } = await supabase.from("broadcasts").delete().eq("id", id).eq("state", "draft").select("id")
   if (error || data.length === 0) return { ok: false as const, error: "Only drafts can be deleted." }
+  revalidatePath("/broadcasts")
+  return { ok: true as const }
+}
+
+// Any broadcast can seed a new draft, including ones already sent.
+export async function duplicateBroadcast(id: string) {
+  if (!idSchema.safeParse(id).success) return { ok: false as const, error: "Couldn't find that broadcast." }
+
+  const { supabase, member } = await requireTeamMember()
+  const { data: original, error } = await supabase
+    .from("broadcasts")
+    .select("name, template_id, subject, preheader, content, audience_filter")
+    .eq("id", id)
+    .single()
+  if (error) return { ok: false as const, error: "Couldn't find that broadcast." }
+
+  const { data, error: insertError } = await supabase
+    .from("broadcasts")
+    .insert({ ...original, name: `${original.name} (copy)`, created_by: member.id })
+    .select("id")
+    .single()
+  if (insertError) return { ok: false as const, error: "Couldn't copy the broadcast." }
+  revalidatePath("/broadcasts")
+  return { ok: true as const, id: data.id as string }
+}
+
+const templateSchema = z.object({
+  name: z.string().trim().min(1, "Give the template a name.").max(120),
+  content: emailContentSchema,
+})
+
+export async function saveAsTemplate(input: unknown) {
+  const parsed = templateSchema.safeParse(input)
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0].message }
+
+  const { supabase } = await requireTeamMember()
+  const { error } = await supabase
+    .from("templates")
+    .insert({ name: parsed.data.name, layout_key: "custom", content: parsed.data.content })
+  if (error) return { ok: false as const, error: "Couldn't save the template." }
+  revalidatePath("/broadcasts")
+  return { ok: true as const }
+}
+
+export async function deleteTemplate(id: string) {
+  if (!idSchema.safeParse(id).success) return { ok: false as const, error: "Couldn't delete the template." }
+
+  const { supabase } = await requireTeamMember()
+  await supabase.from("broadcasts").update({ template_id: null }).eq("template_id", id)
+  const { error } = await supabase.from("templates").delete().eq("id", id).eq("layout_key", "custom")
+  if (error) return { ok: false as const, error: "Couldn't delete the template." }
   revalidatePath("/broadcasts")
   return { ok: true as const }
 }

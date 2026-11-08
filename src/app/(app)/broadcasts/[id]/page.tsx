@@ -2,12 +2,13 @@ import { notFound } from "next/navigation"
 import { z } from "zod"
 
 import { requireTeamMember } from "@/lib/auth"
+import { emailContentSchema } from "@/lib/broadcasts/blocks"
 import { sendBlockers } from "@/lib/broadcasts/compose"
-import { audienceFilterSchema } from "@/lib/broadcasts/content"
+import { audienceFilterSchema, starterContent } from "@/lib/broadcasts/content"
 
 import { BroadcastEditor } from "./broadcast-editor"
 
-export const metadata = { title: "Broadcast" }
+export const metadata = { title: "Campaign" }
 
 const PAGE_SIZE = 1000
 
@@ -20,21 +21,20 @@ export default async function BroadcastPage({ params }: PageProps<"/broadcasts/[
   const { data: broadcast, error } = await supabase
     .from("broadcasts")
     .select(
-      "id, name, template_id, subject, preheader, kicker, heading, body_markdown, cta_label, cta_url, image_url, image_alt, audience_filter, state, scheduled_at, sent_at, last_error"
+      "id, name, subject, preheader, content, audience_filter, state, scheduled_at, sent_at, last_error, templates (layout_key)"
     )
     .eq("id", id)
     .maybeSingle()
   if (error) throw new Error(error.message)
   if (!broadcast) notFound()
 
-  const [templates, statuses, segments, total, sent] = await Promise.all([
-    supabase.from("templates").select("id, name, layout_key").order("created_at").order("name"),
+  const [statuses, segments, total, sent] = await Promise.all([
     supabase.from("statuses").select("value").order("position"),
     supabase.from("segments").select("id, name").order("name"),
     supabase.from("sends").select("id", { count: "exact", head: true }).eq("broadcast_id", id),
     supabase.from("sends").select("id", { count: "exact", head: true }).eq("broadcast_id", id).not("sent_at", "is", null),
   ])
-  for (const result of [templates, statuses, segments, total, sent]) {
+  for (const result of [statuses, segments, total, sent]) {
     if (result.error) throw new Error(result.error.message)
   }
 
@@ -50,11 +50,16 @@ export default async function BroadcastPage({ params }: PageProps<"/broadcasts/[
     if (data.length < PAGE_SIZE) break
   }
 
+  // Drafts started before blocks existed have no content yet, so they begin from their template.
+  const template = broadcast.templates as unknown as { layout_key: string } | null
+  const content = broadcast.content
+    ? emailContentSchema.parse(broadcast.content)
+    : starterContent(template?.layout_key ?? "letter")
+
   return (
     <BroadcastEditor
       key={id}
-      broadcast={{ ...broadcast, audience_filter: audienceFilterSchema.parse(broadcast.audience_filter) }}
-      templates={templates.data ?? []}
+      broadcast={{ ...broadcast, content, audience_filter: audienceFilterSchema.parse(broadcast.audience_filter) }}
       statuses={(statuses.data ?? []).map((status) => status.value)}
       airtableSegments={[...airtableSegments].sort()}
       segments={segments.data ?? []}

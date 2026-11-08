@@ -34,7 +34,7 @@ type ContactDetails = {
 
 export type ExistingSubscriber = ContactDetails & {
   id: string
-  email: string
+  email: string | null
   first_name: string | null
   last_name: string | null
   status: string | null
@@ -44,13 +44,13 @@ export type ExistingSubscriber = ContactDetails & {
   airtable_push_pending: boolean
 }
 
-// Only ever contains columns Airtable owns. unsubscribed_at and suppressed are
-// deliberately absent, so a sync has no way to write them.
+// Only ever contains columns Airtable owns. unsubscribed_at and suppressed are deliberately
+// absent, so a sync has no way to write them. So is status, which the app owns: a new
+// contact's Airtable status is only their starting point.
 export type SubscriberFields = ContactDetails & {
-  email: string
+  email: string | null
   first_name: string | null
   last_name: string | null
-  status: string | null
   source: string | null
   segments: string[]
   airtable_record_id: string
@@ -66,7 +66,7 @@ export type SkippedContact = {
 }
 
 export type SyncPlan = {
-  creates: (SubscriberFields & { subscribed_at: string })[]
+  creates: (SubscriberFields & { subscribed_at: string; status: string | null })[]
   updates: { id: string; fields: SubscriberFields; changed: (keyof SubscriberFields)[] }[]
   unchanged: number
   skipped: SkippedContact[]
@@ -106,7 +106,7 @@ export function planSync(
 ): SyncPlan {
   const plan: SyncPlan = { creates: [], updates: [], unchanged: 0, skipped: [], unknownStatuses: [] }
   const byRecordId = new Map(existing.flatMap((row) => (row.airtable_record_id ? [[row.airtable_record_id, row]] : [])))
-  const byEmail = new Map(existing.map((row) => [row.email.toLowerCase(), row]))
+  const byEmail = new Map(existing.flatMap((row) => (row.email ? [[row.email.toLowerCase(), row]] : [])))
   const statuses = new Set(knownStatuses)
   const unknownStatuses = new Set<string>()
   const claimedEmails = new Set<string>()
@@ -119,38 +119,29 @@ export function planSync(
     const skip = (reason: SkipReason) =>
       plan.skipped.push({ recordId: contact.recordId, name: contact.name, email, reason })
 
-    if (!email) {
-      skip("no_email")
-      continue
-    }
-    if (!emailSchema.safeParse(email).success) {
+    if (email && !emailSchema.safeParse(email).success) {
       skip("invalid_email")
       continue
     }
-    if (claimedEmails.has(email)) {
+    if (email && claimedEmails.has(email)) {
       skip("duplicate_email")
       continue
     }
 
     const linked = byRecordId.get(contact.recordId)
-    const owner = byEmail.get(email)
+    const owner = email ? byEmail.get(email) : undefined
     if (linked && owner && owner.id !== linked.id) {
       skip("duplicate_email")
       continue
     }
-    claimedEmails.add(email)
+    if (email) claimedEmails.add(email)
 
     const match = linked ?? owner
-    let status = contact.status
-    if (status && !statuses.has(status)) {
-      unknownStatuses.add(status)
-      status = match?.status ?? null
-    }
 
     const fields: SubscriberFields = {
-      email,
+      // A blank Airtable cell doesn't erase an email the app already has.
+      email: email ?? match?.email ?? null,
       ...splitName(contact.name),
-      status,
       source: cleanText(contact.source),
       segments: cleanSegments(contact.segments),
       airtable_record_id: contact.recordId,
@@ -166,7 +157,12 @@ export function planSync(
     }
 
     if (!match) {
-      plan.creates.push({ ...fields, subscribed_at: contact.createdTime })
+      let status = contact.status
+      if (status && !statuses.has(status)) {
+        unknownStatuses.add(status)
+        status = null
+      }
+      plan.creates.push({ ...fields, status, subscribed_at: contact.createdTime })
       continue
     }
 
@@ -177,7 +173,7 @@ export function planSync(
     }
 
     const changed = (Object.keys(fields) as (keyof SubscriberFields)[]).filter((key) => {
-      if (key === "email") return fields.email !== match.email.toLowerCase()
+      if (key === "email") return fields.email !== (match.email?.toLowerCase() ?? null)
       const value = fields[key]
       const current = match[key]
       if (Array.isArray(value) && Array.isArray(current)) return !sameList(value, current)

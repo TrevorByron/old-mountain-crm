@@ -10,7 +10,7 @@ import { requireTeamMember } from "@/lib/auth"
 
 import { NewBroadcastDialog } from "./new-broadcast-dialog"
 
-export const metadata = { title: "Broadcasts" }
+export const metadata = { title: "Campaigns" }
 
 const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" })
 
@@ -32,10 +32,16 @@ export default async function BroadcastsPage() {
     .order("updated_at", { ascending: false })
   if (error) throw new Error(error.message)
 
+  const { data: templates, error: templatesError } = await supabase
+    .from("templates")
+    .select("id, name, layout_key")
+    .order("name")
+  if (templatesError) throw new Error(templatesError.message)
+
   return (
     <>
-      <PageHeader title="Broadcasts" description="One-off emails to the segments and statuses you choose.">
-        <NewBroadcastDialog />
+      <PageHeader title="Campaigns" description="Emails to the segments you choose.">
+        <NewBroadcastDialog templates={templates} />
       </PageHeader>
       {broadcasts.length === 0 ? (
         <Empty className="border">
@@ -43,11 +49,11 @@ export default async function BroadcastsPage() {
             <EmptyMedia variant="icon">
               <SendIcon />
             </EmptyMedia>
-            <EmptyTitle>No broadcasts yet</EmptyTitle>
+            <EmptyTitle>No campaigns yet</EmptyTitle>
             <EmptyDescription>Start from a template, write your email and send yourself a test.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <NewBroadcastDialog />
+            <NewBroadcastDialog templates={templates} />
           </EmptyContent>
         </Empty>
       ) : (
@@ -67,9 +73,9 @@ export default async function BroadcastsPage() {
                   const badge = STATE_BADGES[broadcast.state] ?? STATE_BADGES.draft
                   const when = broadcast.sent_at ?? broadcast.scheduled_at
                   return (
-                    <TableRow key={broadcast.id}>
+                    <TableRow key={broadcast.id} className="relative">
                       <TableCell className="whitespace-normal">
-                        <Link href={`/broadcasts/${broadcast.id}`} className="font-medium underline-offset-4 hover:underline">
+                        <Link href={`/broadcasts/${broadcast.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
                           {broadcast.name}
                         </Link>
                         {broadcast.subject && <p className="text-muted-foreground">{broadcast.subject}</p>}

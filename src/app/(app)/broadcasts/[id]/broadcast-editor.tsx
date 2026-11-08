@@ -1,14 +1,26 @@
 "use client"
 
 import { format } from "date-fns"
-import { CalendarIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CalendarIcon,
+  CheckCircle2Icon,
+  CircleAlertIcon,
+  CopyIcon,
+  MoreHorizontalIcon,
+  Redo2Icon,
+  Trash2Icon,
+  TriangleAlertIcon,
+  Undo2Icon,
+  UserRoundIcon,
+} from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { MultiSelect } from "@/components/multi-select"
-import { PageHeader } from "@/components/page-header"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -24,57 +36,55 @@ import {
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useSidebar } from "@/components/ui/sidebar"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { EMAIL_PHOTOS } from "@/lib/broadcasts/photos"
-import {
-  broadcastContentSchema,
-  isAudienceEmpty,
-  missingContent,
-  type AudienceFilter,
-  type LayoutKey,
-} from "@/lib/broadcasts/content"
+import { COLORS, type ColorKey, type EmailContent } from "@/lib/broadcasts/blocks"
+import { LIFECYCLES } from "@/lib/pipeline/stages"
+import { checkBroadcast, isAudienceEmpty, type AudienceFilter, type BroadcastIssue } from "@/lib/broadcasts/content"
 
 import {
   cancelBroadcast,
   countAudience,
   deleteBroadcast,
+  duplicateBroadcast,
   previewBroadcast,
   queueBroadcast,
   resumeBroadcast,
+  saveAsTemplate,
   saveBroadcast,
   sendTest,
-  uploadPhoto,
 } from "../actions"
+import { BlockEditor } from "./block-editor"
+import { EmailPreview } from "./email-preview"
 
 type Broadcast = {
   id: string
   name: string
-  template_id: string | null
   subject: string | null
   preheader: string | null
-  kicker: string | null
-  heading: string | null
-  body_markdown: string | null
-  cta_label: string | null
-  cta_url: string | null
-  image_url: string | null
-  image_alt: string | null
+  content: EmailContent
   audience_filter: AudienceFilter
   state: string
   scheduled_at: string | null
@@ -82,31 +92,12 @@ type Broadcast = {
   last_error: string | null
 }
 
-type Template = { id: string; name: string; layout_key: string }
-
-const NO_PHOTO = "__none__"
-const YOUR_PHOTO = "__yours__"
-const LIBRARY_ITEMS = [
-  { label: "No photo", value: NO_PHOTO },
-  ...EMAIL_PHOTOS.map((photo) => ({ label: photo.label, value: photo.path as string })),
-]
-const MAX_PHOTO_EDGE = 2400
-
-// Phone photos are often over the upload limit, so they're shrunk before leaving the browser.
-async function shrinkPhoto(file: File) {
-  const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, MAX_PHOTO_EDGE / Math.max(bitmap.width, bitmap.height))
-  const canvas = document.createElement("canvas")
-  canvas.width = Math.round(bitmap.width * scale)
-  canvas.height = Math.round(bitmap.height * scale)
-  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  bitmap.close()
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't read photo"))), "image/jpeg", 0.9)
-  })
-}
-
 const dateTimeFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" })
+const AUTOSAVE_MS = 1200
+const HISTORY_GROUP_MS = 800
+const HISTORY_LIMIT = 100
+const DELETED_TOAST = "block-deleted"
+const COLOR_ITEMS = (Object.keys(COLORS) as ColorKey[]).map((value) => ({ value, label: COLORS[value].label }))
 
 function StateNotice({
   broadcast,
@@ -167,7 +158,7 @@ function StateNotice({
         <AlertTitle>Sent to {sentCount} people</AlertTitle>
         <AlertDescription>
           {broadcast.sent_at && `Finished ${dateTimeFormat.format(new Date(broadcast.sent_at))}. `}
-          Sent broadcasts can&apos;t be edited.
+          Sent campaigns can&apos;t be edited.
         </AlertDescription>
       </Alert>
     )
@@ -175,9 +166,108 @@ function StateNotice({
   return null
 }
 
+function ColorSelect({
+  id,
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: ColorKey
+  disabled: boolean
+  onChange: (value: ColorKey) => void
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Select items={COLOR_ITEMS} value={value} disabled={disabled} onValueChange={(next) => next && onChange(next)}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {COLOR_ITEMS.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                <span className="size-3 rounded-full border" style={{ backgroundColor: COLORS[item.value].value }} />
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </Field>
+  )
+}
+
+function ChecklistRow({
+  tone,
+  message,
+  onFix,
+}: {
+  tone: "done" | "error" | "warning"
+  message: string
+  onFix?: () => void
+}) {
+  const Icon = tone === "done" ? CheckCircle2Icon : tone === "error" ? CircleAlertIcon : TriangleAlertIcon
+  const color = tone === "done" ? "text-chart-1" : tone === "error" ? "text-destructive" : "text-chart-4"
+  return (
+    <li className="flex items-start gap-2 text-sm">
+      <Icon className={`mt-0.5 size-4 shrink-0 ${color}`} />
+      <span className="min-w-0 flex-1">{message}</span>
+      {onFix && (
+        <Button variant="link" size="xs" className="h-auto p-0" onClick={onFix}>
+          Fix
+        </Button>
+      )}
+    </li>
+  )
+}
+
+function SaveTemplateDialog({ content }: { content: EmailContent }) {
+  const [open, setOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
+  function save(formData: FormData) {
+    startTransition(async () => {
+      const result = await saveAsTemplate({ name: formData.get("name"), content })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      toast.success("Saved. It's now an option when you start a new campaign.")
+      setOpen(false)
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="outline" size="sm" />}>Save as template</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Save as a template</DialogTitle>
+          <DialogDescription>Keep these blocks to start future campaigns from. The subject and audience aren&apos;t included.</DialogDescription>
+        </DialogHeader>
+        <form action={save} className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel htmlFor="template-name">Template name</FieldLabel>
+            <Input id="template-name" name="name" placeholder="Monthly newsletter" required />
+          </Field>
+          <DialogFooter>
+            <Button type="submit" disabled={isPending}>
+              {isPending && <Spinner data-icon="inline-start" />}
+              Save template
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function BroadcastEditor({
   broadcast,
-  templates,
   statuses,
   airtableSegments,
   segments,
@@ -187,7 +277,6 @@ export function BroadcastEditor({
   sendBlockers,
 }: {
   broadcast: Broadcast
-  templates: Template[]
   statuses: string[]
   airtableSegments: string[]
   segments: { id: string; name: string }[]
@@ -199,59 +288,168 @@ export function BroadcastEditor({
   const router = useRouter()
   const isMobile = useIsMobile()
   const [name, setName] = useState(broadcast.name)
-  const [templateId, setTemplateId] = useState(broadcast.template_id ?? templates[0]?.id)
-  const [fields, setFields] = useState({
-    subject: broadcast.subject ?? "",
-    preheader: broadcast.preheader ?? "",
-    kicker: broadcast.kicker ?? "",
-    heading: broadcast.heading ?? "",
-    body_markdown: broadcast.body_markdown ?? "",
-    cta_label: broadcast.cta_label ?? "",
-    cta_url: broadcast.cta_url ?? "",
-    image_url: broadcast.image_url ?? "",
-    image_alt: broadcast.image_alt ?? "",
-  })
-  const [isUploading, setIsUploading] = useState(false)
+  const [subject, setSubject] = useState(broadcast.subject ?? "")
+  const [preheader, setPreheader] = useState(broadcast.preheader ?? "")
+  const [content, setContentState] = useState(broadcast.content)
   const [audience, setAudience] = useState(broadcast.audience_filter)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [history, setHistory] = useState<{ past: EmailContent[]; future: EmailContent[] }>({ past: [], future: [] })
+  const [editorVersion, setEditorVersion] = useState(0)
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
-  const [previewDocument, setPreviewDocument] = useState("")
-  const [device, setDevice] = useState("desktop")
+  const [preview, setPreview] = useState({ html: "", bytes: 0 })
+  const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [tab, setTab] = useState("design")
+  const [mobileView, setMobileView] = useState("edit")
   const [sendMode, setSendMode] = useState("now")
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>()
   const [scheduleTime, setScheduleTime] = useState("09:00")
   const [isPending, startTransition] = useTransition()
+  const lastHistoryAt = useRef(0)
+  const { open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar()
+  const sidebarWasOpen = useRef(sidebarOpen)
+  const setSidebarOpenRef = useRef(setSidebarOpen)
 
   const readOnly = broadcast.state !== "draft"
-  const hasOwnPhoto = Boolean(fields.image_url) && !EMAIL_PHOTOS.some((photo) => photo.path === fields.image_url)
-  const photoItems = hasOwnPhoto ? [...LIBRARY_ITEMS, { label: "Your photo", value: YOUR_PHOTO }] : LIBRARY_ITEMS
-  const layout = (templates.find((template) => template.id === templateId)?.layout_key ?? "letter") as LayoutKey
-  const fieldsKey = JSON.stringify(fields)
+  const contentKey = JSON.stringify(content)
   const audienceKey = JSON.stringify(audience)
-
-  const parsed = broadcastContentSchema.safeParse(fields)
-  const problems = parsed.success
-    ? missingContent(parsed.data, layout)
-    : parsed.error.issues.map((issue) => issue.message)
-  if (isAudienceEmpty(audience)) problems.push("Choose who this goes to.")
-  else if (audienceCount === 0) problems.push("Nobody who can receive email is in this audience.")
+  const draftKey = JSON.stringify({ name, subject, preheader, content, audience })
+  const [savedKey, setSavedKey] = useState(draftKey)
 
   const scheduledAt =
     sendMode === "schedule" && scheduleDate
       ? new Date(`${format(scheduleDate, "yyyy-MM-dd")}T${scheduleTime || "09:00"}`)
       : null
-  if (sendMode === "schedule" && !scheduledAt) problems.push("Choose a date to send.")
+
+  const checks = checkBroadcast({ subject, preheader, content }, preview.bytes)
+  const audienceProblem = isAudienceEmpty(audience)
+    ? "Choose who this goes to."
+    : audienceCount === 0
+      ? "Nobody who can receive email is in this audience."
+      : null
+  const scheduleProblem = sendMode === "schedule" && !scheduledAt ? "Choose a date to send." : null
+  const canSend =
+    checks.errors.length === 0 && !audienceProblem && !scheduleProblem && sendBlockers.length === 0 && Boolean(audienceCount)
+  const errorCount = checks.errors.length + (audienceProblem ? 1 : 0) + sendBlockers.length
+
+  // Typing groups into one undo step. Adding, moving and deleting are always their own.
+  function setContent(next: EmailContent, { checkpoint = false }: { checkpoint?: boolean } = {}) {
+    const now = Date.now()
+    if (checkpoint || now - lastHistoryAt.current > HISTORY_GROUP_MS) {
+      setHistory(({ past }) => ({ past: [...past.slice(-HISTORY_LIMIT), content], future: [] }))
+    }
+    lastHistoryAt.current = now
+    setContentState(next)
+  }
+
+  function undo() {
+    const previous = history.past.at(-1)
+    if (!previous) return
+    toast.dismiss(DELETED_TOAST)
+    setHistory({ past: history.past.slice(0, -1), future: [content, ...history.future] })
+    setContentState(previous)
+    setEditorVersion((version) => version + 1)
+    lastHistoryAt.current = 0
+  }
+
+  function redo() {
+    const [next, ...future] = history.future
+    if (!next) return
+    setHistory({ past: [...history.past, content], future })
+    setContentState(next)
+    setEditorVersion((version) => version + 1)
+    lastHistoryAt.current = 0
+  }
+
+  const undoRef = useRef(undo)
+  const redoRef = useRef(redo)
+  useEffect(() => {
+    undoRef.current = undo
+    redoRef.current = redo
+    setSidebarOpenRef.current = setSidebarOpen
+  })
+
+  // The builder needs the width, so the sidebar steps aside until you leave.
+  useEffect(() => {
+    const restore = sidebarWasOpen.current
+    setSidebarOpenRef.current(false)
+    return () => setSidebarOpenRef.current(restore)
+  }, [])
+
+  // Undo for blocks, whenever you're not typing in a field that has its own undo.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return
+      if (event.target instanceof Element && event.target.closest("input, textarea, [contenteditable=true]")) return
+      event.preventDefault()
+      if (event.shiftKey) redoRef.current()
+      else undoRef.current()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
+
+  function jumpTo(issue: Pick<BroadcastIssue, "target">) {
+    setTab("design")
+    setMobileView("edit")
+    if (issue.target === "subject" || issue.target === "preheader") {
+      const id = issue.target === "subject" ? "broadcast-subject" : "broadcast-preheader"
+      setTimeout(() => document.getElementById(id)?.focus(), 50)
+    } else if (issue.target) {
+      setSelectedId(issue.target.blockId)
+    }
+  }
+
+  function addFirstNameToSubject() {
+    setSubject((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}{{first_name|there}}`)
+    setTimeout(() => document.getElementById("broadcast-subject")?.focus(), 0)
+  }
+
+  const persist = async () => {
+    const result = await saveBroadcast({
+      id: broadcast.id,
+      name: name.trim() || "Untitled campaign",
+      subject,
+      preheader,
+      content,
+      audience_filter: audience,
+    })
+    if (result.ok) {
+      setSavedKey(draftKey)
+      setSaveState("saved")
+      setSaveError(null)
+    } else {
+      setSaveState("error")
+      setSaveError(result.error)
+    }
+    return result
+  }
+  const persistRef = useRef(persist)
+  useEffect(() => {
+    persistRef.current = persist
+  })
+
+  // Autosave, so a closed tab never costs more than a second or two of work.
+  useEffect(() => {
+    if (readOnly || draftKey === savedKey) return
+    const timer = setTimeout(() => {
+      setSaveState("saving")
+      void persistRef.current()
+    }, AUTOSAVE_MS)
+    return () => clearTimeout(timer)
+  }, [draftKey, savedKey, readOnly])
 
   useEffect(() => {
     let current = true
     const timer = setTimeout(async () => {
-      const html = await previewBroadcast({ layout, content: JSON.parse(fieldsKey) })
-      if (current && html) setPreviewDocument(html)
-    }, 300)
+      const result = await previewBroadcast({ preheader, content: JSON.parse(contentKey) })
+      if (current && result) setPreview(result)
+    }, 250)
     return () => {
       current = false
       clearTimeout(timer)
     }
-  }, [layout, fieldsKey])
+  }, [contentKey, preheader])
 
   useEffect(() => {
     let current = true
@@ -264,45 +462,6 @@ export function BroadcastEditor({
       clearTimeout(timer)
     }
   }, [audienceKey])
-
-  function setField(key: keyof typeof fields, value: string) {
-    setFields((previous) => ({ ...previous, [key]: value }))
-  }
-
-  function choosePhoto(value: string | null) {
-    if (value === YOUR_PHOTO) return
-    setFields((previous) => ({ ...previous, image_url: !value || value === NO_PHOTO ? "" : value, image_alt: "" }))
-  }
-
-  async function upload(event: React.ChangeEvent<HTMLInputElement>) {
-    const input = event.target
-    const file = input.files?.[0]
-    if (!file) return
-
-    setIsUploading(true)
-    try {
-      const formData = new FormData()
-      formData.set("photo", await shrinkPhoto(file), "photo.jpg")
-      const result = await uploadPhoto(formData)
-      if (!result.ok) toast.error(result.error)
-      else setFields((previous) => ({ ...previous, image_url: result.url, image_alt: "" }))
-    } catch {
-      toast.error("Couldn't read that file. Try a JPG or PNG.")
-    } finally {
-      input.value = ""
-      setIsUploading(false)
-    }
-  }
-
-  const persist = () => saveBroadcast({ id: broadcast.id, name, template_id: templateId, ...fields, audience_filter: audience })
-
-  function save() {
-    startTransition(async () => {
-      const result = await persist()
-      if (!result.ok) toast.error(result.error)
-      else toast.success("Draft saved")
-    })
-  }
 
   function test() {
     startTransition(async () => {
@@ -333,7 +492,7 @@ export function BroadcastEditor({
         toast.error(result.error)
         return
       }
-      toast.success(scheduledAt ? "Broadcast scheduled" : "Broadcast is sending")
+      toast.success(scheduledAt ? "Campaign scheduled" : "Campaign is sending")
       router.refresh()
     })
   }
@@ -368,184 +527,120 @@ export function BroadcastEditor({
     })
   }
 
-  const form = (
-    <div className="flex flex-col gap-4 pb-6 md:pr-4">
-      <StateNotice
-        broadcast={broadcast}
-        sentCount={sentCount}
-        totalCount={totalCount}
-        onCancel={cancel}
-        onResume={resume}
-        disabled={isPending}
-      />
-      <Card>
-        <CardHeader>
-          <CardTitle>Email</CardTitle>
-        </CardHeader>
+  function duplicate() {
+    startTransition(async () => {
+      const result = await duplicateBroadcast(broadcast.id)
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      router.push(`/broadcasts/${result.id}`)
+    })
+  }
+
+  const designTab = (
+    <div className="flex flex-col gap-3">
+      <Card size="sm">
         <CardContent>
-          <FieldGroup>
+          <FieldGroup className="gap-3">
             <Field>
-              <FieldLabel htmlFor="broadcast-name">Internal name</FieldLabel>
-              <Input id="broadcast-name" value={name} disabled={readOnly} onChange={(event) => setName(event.target.value)} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="broadcast-layout">Layout</FieldLabel>
-              <Select
-                items={templates.map((template) => ({ label: template.name, value: template.id }))}
-                value={templateId}
-                disabled={readOnly}
-                onValueChange={(value) => value && setTemplateId(value)}
-              >
-                <SelectTrigger id="broadcast-layout" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {templates.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="broadcast-subject">Subject</FieldLabel>
+              <div className="flex items-center justify-between gap-2">
+                <FieldLabel htmlFor="broadcast-subject">Subject</FieldLabel>
+                {!readOnly && (
+                  <Button variant="ghost" size="xs" onClick={addFirstNameToSubject}>
+                    <UserRoundIcon data-icon="inline-start" />
+                    First name
+                  </Button>
+                )}
+              </div>
               <Input
                 id="broadcast-subject"
-                value={fields.subject}
-                placeholder="October 2027: 12 seats, 11 days, 4 regions"
+                value={subject}
+                placeholder="What's this email about?"
                 disabled={readOnly}
-                onChange={(event) => setField("subject", event.target.value)}
+                onChange={(event) => setSubject(event.target.value)}
               />
+              {subject.length > 60 && <FieldDescription>{subject.length} characters. Phones usually show about 60.</FieldDescription>}
             </Field>
             <Field>
               <FieldLabel htmlFor="broadcast-preheader">Preview text</FieldLabel>
               <Input
                 id="broadcast-preheader"
-                value={fields.preheader}
+                value={preheader}
+                placeholder="Shows after the subject in most inboxes"
                 disabled={readOnly}
-                onChange={(event) => setField("preheader", event.target.value)}
-              />
-              <FieldDescription>Shows after the subject in most inboxes.</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="broadcast-kicker">Label</FieldLabel>
-              <Input
-                id="broadcast-kicker"
-                value={fields.kicker}
-                placeholder="November newsletter"
-                disabled={readOnly}
-                onChange={(event) => setField("kicker", event.target.value)}
-              />
-              <FieldDescription>The small gold line above the headline.</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="broadcast-heading">Heading</FieldLabel>
-              <Input
-                id="broadcast-heading"
-                value={fields.heading}
-                disabled={readOnly}
-                onChange={(event) => setField("heading", event.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="broadcast-photo">Photo</FieldLabel>
-              <Select
-                items={photoItems}
-                value={hasOwnPhoto ? YOUR_PHOTO : fields.image_url || NO_PHOTO}
-                disabled={readOnly}
-                onValueChange={choosePhoto}
-              >
-                <SelectTrigger id="broadcast-photo" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {photoItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            {!readOnly && (
-              <Field>
-                <FieldLabel htmlFor="broadcast-photo-upload">Or upload your own</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="broadcast-photo-upload"
-                    type="file"
-                    accept="image/*"
-                    disabled={isUploading}
-                    onChange={upload}
-                  />
-                  {isUploading && <Spinner />}
-                </div>
-                <FieldDescription>
-                  JPG or PNG. Tall photos are cropped around the middle, and location data is removed.
-                </FieldDescription>
-              </Field>
-            )}
-            {hasOwnPhoto && (
-              <Field>
-                <FieldLabel htmlFor="broadcast-image-alt">Photo description</FieldLabel>
-                <Input
-                  id="broadcast-image-alt"
-                  value={fields.image_alt}
-                  placeholder="Elephants crossing a dry riverbed"
-                  disabled={readOnly}
-                  onChange={(event) => setField("image_alt", event.target.value)}
-                />
-                <FieldDescription>Shown if images are off, and read aloud by screen readers.</FieldDescription>
-              </Field>
-            )}
-            <Field>
-              <FieldLabel htmlFor="broadcast-body">Body</FieldLabel>
-              <Textarea
-                id="broadcast-body"
-                rows={10}
-                value={fields.body_markdown}
-                disabled={readOnly}
-                onChange={(event) => setField("body_markdown", event.target.value)}
-              />
-              <FieldDescription>Markdown works: **bold**, [links](https://www.old-mountain.com), - lists.</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="broadcast-cta-label">Button label</FieldLabel>
-              <Input
-                id="broadcast-cta-label"
-                value={fields.cta_label}
-                disabled={readOnly}
-                onChange={(event) => setField("cta_label", event.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="broadcast-cta-url">Button link</FieldLabel>
-              <Input
-                id="broadcast-cta-url"
-                type="url"
-                value={fields.cta_url}
-                placeholder="https://www.old-mountain.com/..."
-                disabled={readOnly}
-                onChange={(event) => setField("cta_url", event.target.value)}
+                onChange={(event) => setPreheader(event.target.value)}
               />
             </Field>
           </FieldGroup>
         </CardContent>
       </Card>
+      {!readOnly && (
+        <div className="flex flex-wrap items-center gap-1">
+          <Button variant="ghost" size="icon-sm" aria-label="Undo" disabled={history.past.length === 0} onClick={undo}>
+            <Undo2Icon />
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Redo" disabled={history.future.length === 0} onClick={redo}>
+            <Redo2Icon />
+          </Button>
+          <div className="ml-auto">
+            <SaveTemplateDialog content={content} />
+          </div>
+        </div>
+      )}
+      <BlockEditor
+        content={content}
+        onChange={setContent}
+        onStructureChange={(next) => setContent(next, { checkpoint: true })}
+        onRemoved={() => toast("Block deleted", { id: DELETED_TOAST, action: { label: "Undo", onClick: () => undoRef.current() } })}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        disabled={readOnly}
+        editorVersion={editorVersion}
+      />
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Whole email</CardTitle>
+          <CardDescription>Your address and unsubscribe link are always added at the bottom.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3">
+            <ColorSelect
+              id="email-page"
+              label="Around the email"
+              value={content.page}
+              disabled={readOnly}
+              onChange={(page) => setContent({ ...content, page }, { checkpoint: true })}
+            />
+            <ColorSelect
+              id="email-paper"
+              label="Behind the content"
+              value={content.paper}
+              disabled={readOnly}
+              onChange={(paper) => setContent({ ...content, paper }, { checkpoint: true })}
+            />
+          </div>
+        </CardContent>
+      </Card>
+      {!readOnly && (
+        <Button onClick={() => setTab("send")}>
+          Next: audience and send
+          <ArrowRightIcon data-icon="inline-end" />
+        </Button>
+      )}
+    </div>
+  )
 
+  const sendTab = (
+    <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>Audience</CardTitle>
+          <CardTitle>Who gets this</CardTitle>
           <CardDescription>
             {audienceCount === null
               ? "Counting..."
               : `${audienceCount} ${audienceCount === 1 ? "person" : "people"} will receive this.`}{" "}
-            Anyone matching at least one choice is included, and unsubscribed or suppressed people never are.
+            Anyone matching at least one choice is included. Unsubscribed people never are.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -589,159 +684,264 @@ export function BroadcastEditor({
                 placeholder="Choose Airtable segments"
               />
             </Field>
+            <Field>
+              <FieldLabel htmlFor="audience-exclude-stage">Leave out people who are</FieldLabel>
+              <MultiSelect
+                id="audience-exclude-stage"
+                options={LIFECYCLES.map((item) => ({ label: item.label, value: item.key }))}
+                value={audience.exclude_lifecycles}
+                disabled={readOnly}
+                onChange={(exclude_lifecycles) => setAudience({ ...audience, exclude_lifecycles })}
+                placeholder="Nobody left out"
+              />
+              <FieldDescription>Leave out Customers so people who&apos;ve booked don&apos;t get a sales email.</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="audience-exclude-segments">Leave out saved segments</FieldLabel>
+              <MultiSelect
+                id="audience-exclude-segments"
+                options={segments.map((segment) => ({ label: segment.name, value: segment.id }))}
+                value={audience.exclude_segment_ids}
+                disabled={readOnly}
+                onChange={(exclude_segment_ids) => setAudience({ ...audience, exclude_segment_ids })}
+                placeholder="Nobody left out"
+                emptyMessage="No segments match."
+              />
+            </Field>
           </FieldGroup>
         </CardContent>
       </Card>
 
       {!readOnly && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Send</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {sendBlockers.length > 0 && (
-              <Alert>
-                <AlertTitle>Before this can go to subscribers</AlertTitle>
-                <AlertDescription>
-                  <ul className="list-disc pl-4">
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>{errorCount === 0 ? "Ready to send" : `${errorCount} ${errorCount === 1 ? "thing" : "things"} to fix first`}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="flex flex-col gap-2">
+                {checks.issues
+                  .filter((issue) => issue.severity === "error")
+                  .map((issue) => (
+                    <ChecklistRow
+                      key={issue.message}
+                      tone="error"
+                      message={issue.message}
+                      onFix={issue.target ? () => jumpTo(issue) : undefined}
+                    />
+                  ))}
+                {audienceProblem && <ChecklistRow tone="error" message={audienceProblem} />}
+                {checks.issues
+                  .filter((issue) => issue.severity === "warning")
+                  .map((issue) => (
+                    <ChecklistRow
+                      key={issue.message}
+                      tone="warning"
+                      message={issue.message}
+                      onFix={issue.target ? () => jumpTo(issue) : undefined}
+                    />
+                  ))}
+                {checks.errors.length === 0 && <ChecklistRow tone="done" message="The email is complete." />}
+                {!audienceProblem && <ChecklistRow tone="done" message={`Going to ${audienceCount ?? 0} people.`} />}
+              </ul>
+              {sendBlockers.length > 0 && (
+                <>
+                  <p className="mt-4 mb-2 text-sm font-medium">One-time setup</p>
+                  <ul className="flex flex-col gap-2">
                     {sendBlockers.map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
+                      <ChecklistRow key={blocker} tone="error" message={blocker} />
                     ))}
                   </ul>
-                </AlertDescription>
-              </Alert>
-            )}
-            <Tabs value={sendMode} onValueChange={setSendMode}>
-              <TabsList>
-                <TabsTrigger value="now">Send now</TabsTrigger>
-                <TabsTrigger value="schedule">Schedule</TabsTrigger>
-              </TabsList>
-              <TabsContent value="now" />
-              <TabsContent value="schedule" className="pt-2">
-                <div className="flex flex-wrap gap-2">
-                  <Popover>
-                    <PopoverTrigger render={<Button variant="outline" />}>
-                      <CalendarIcon data-icon="inline-start" />
-                      {scheduleDate ? format(scheduleDate, "MMM d, yyyy") : "Pick a date"}
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={scheduleDate}
-                        onSelect={setScheduleDate}
-                        disabled={{ before: new Date() }}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Input
-                    aria-label="Send time, in your time zone"
-                    type="time"
-                    className="w-32"
-                    value={scheduleTime}
-                    onChange={(event) => setScheduleTime(event.target.value)}
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
-            {problems.length > 0 && <p className="text-sm text-muted-foreground">{problems[0]}</p>}
-            <div className="flex flex-wrap gap-2">
-              <AlertDialog>
-                <AlertDialogTrigger
-                  render={<Button disabled={problems.length > 0 || sendBlockers.length > 0 || isPending || !audienceCount} />}
-                >
-                  {sendMode === "schedule" ? "Review and schedule" : "Review and send"}
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {scheduledAt ? "Schedule" : "Send"} to {audienceCount} {audienceCount === 1 ? "person" : "people"}?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      &ldquo;{fields.subject}&rdquo; goes {scheduledAt ? `out ${dateTimeFormat.format(scheduledAt)}` : "out right away"}.
-                      {!scheduledAt && " This can't be undone."}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Not yet</AlertDialogCancel>
-                    <AlertDialogAction onClick={send}>
-                      {scheduledAt ? "Schedule" : "Send"} to {audienceCount}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <Button variant="secondary" onClick={test} disabled={testBlockers.length > 0 || isPending}>
-                {isPending && <Spinner data-icon="inline-start" />}
-                Send test to me
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Send</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <Tabs value={sendMode} onValueChange={setSendMode}>
+                <TabsList>
+                  <TabsTrigger value="now">Send now</TabsTrigger>
+                  <TabsTrigger value="schedule">Schedule</TabsTrigger>
+                </TabsList>
+                <TabsContent value="now" />
+                <TabsContent value="schedule" className="pt-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Popover>
+                      <PopoverTrigger render={<Button variant="outline" />}>
+                        <CalendarIcon data-icon="inline-start" />
+                        {scheduleDate ? format(scheduleDate, "MMM d, yyyy") : "Pick a date"}
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={scheduleDate}
+                          onSelect={setScheduleDate}
+                          disabled={{ before: new Date() }}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Input
+                      aria-label="Send time, in your time zone"
+                      type="time"
+                      className="w-32"
+                      value={scheduleTime}
+                      onChange={(event) => setScheduleTime(event.target.value)}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+              <div className="flex flex-wrap gap-2">
+                <AlertDialog>
+                  <AlertDialogTrigger render={<Button disabled={!canSend || isPending} />}>
+                    {sendMode === "schedule" ? "Review and schedule" : "Review and send"}
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {scheduledAt ? "Schedule" : "Send"} to {audienceCount} {audienceCount === 1 ? "person" : "people"}?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        &ldquo;{subject}&rdquo; goes {scheduledAt ? `out ${dateTimeFormat.format(scheduledAt)}` : "out right away"}.
+                        {!scheduledAt && " This can't be undone."}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Not yet</AlertDialogCancel>
+                      <AlertDialogAction onClick={send}>
+                        {scheduledAt ? "Schedule" : "Send"} to {audienceCount}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Button variant="secondary" onClick={test} disabled={testBlockers.length > 0 || isPending}>
+                  {isPending && <Spinner data-icon="inline-start" />}
+                  Send test to me
+                </Button>
+              </div>
+              {testBlockers.length > 0 && (
+                <p className="text-sm text-muted-foreground">Test sends need setup first: {testBlockers[0]}</p>
+              )}
+              {scheduleProblem && <p className="text-sm text-muted-foreground">{scheduleProblem}</p>}
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )
 
-  const preview = (
-    <div className="flex h-full flex-col gap-2 md:pl-4">
-      <ToggleGroup
-        variant="outline"
-        aria-label="Preview width"
-        value={[device]}
-        onValueChange={(value: string[]) => value[0] && setDevice(value[0])}
-      >
-        <ToggleGroupItem value="desktop">Desktop</ToggleGroupItem>
-        <ToggleGroupItem value="mobile">Mobile</ToggleGroupItem>
-      </ToggleGroup>
-      <iframe
-        title="Email preview"
-        sandbox="allow-same-origin"
-        srcDoc={previewDocument}
-        className="mx-auto h-[640px] w-full min-h-0 flex-1 rounded-lg border bg-white md:h-auto"
-        style={{ maxWidth: device === "mobile" ? 375 : undefined }}
+  const form = (
+    <div className="flex flex-col gap-4 pb-6 md:pr-4">
+      <StateNotice
+        broadcast={broadcast}
+        sentCount={sentCount}
+        totalCount={totalCount}
+        onCancel={cancel}
+        onResume={resume}
+        disabled={isPending}
       />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="design">1. Design</TabsTrigger>
+          <TabsTrigger value="send">2. Audience and send</TabsTrigger>
+        </TabsList>
+        <TabsContent value="design" className="pt-2">
+          {designTab}
+        </TabsContent>
+        <TabsContent value="send" className="pt-2">
+          {sendTab}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 
+  const previewPane = <EmailPreview html={preview.html} selectedId={selectedId} onSelect={setSelectedId} />
+  const saveStatus = readOnly
+    ? "Not editable"
+    : saveState === "saving"
+      ? "Saving..."
+      : saveState === "error"
+        ? `Not saved: ${saveError}`
+        : draftKey === savedKey
+          ? "Saved"
+          : "Saving soon..."
+
   return (
     <>
-      <PageHeader title={broadcast.name} description="Write on the left, and the preview follows on the right.">
-        {!readOnly && (
-          <div className="flex gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger render={<Button variant="outline" disabled={isPending} />}>Delete</AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
-                  <AlertDialogDescription>Nothing has been sent. This removes the draft for good.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep it</AlertDialogCancel>
-                  <AlertDialogAction variant="destructive" onClick={destroy}>
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon-sm" aria-label="Back to campaigns" render={<Link href="/broadcasts" />} nativeButton={false}>
+          <ArrowLeftIcon />
+        </Button>
+        <Input
+          aria-label="Internal name, only your team sees this"
+          value={name}
+          placeholder="Untitled campaign"
+          disabled={readOnly}
+          onChange={(event) => setName(event.target.value)}
+          className="h-9 max-w-md min-w-0 flex-1 border-transparent bg-transparent font-heading text-lg font-semibold shadow-none hover:border-input"
+        />
+        <span className="ml-1 shrink-0 text-xs text-muted-foreground" aria-live="polite">
+          {saveStatus}
+        </span>
+        <div className="ml-auto">
+          <AlertDialog>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="More actions" />}>
+                <MoreHorizontalIcon />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem disabled={isPending} onClick={duplicate}>
+                  <CopyIcon />
+                  Duplicate
+                </DropdownMenuItem>
+                {!readOnly && (
+                  <AlertDialogTrigger nativeButton={false} render={<DropdownMenuItem variant="destructive" closeOnClick={false} />}>
+                    <Trash2Icon />
                     Delete draft
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <Button onClick={save} disabled={isPending}>
-              {isPending && <Spinner data-icon="inline-start" />}
-              Save draft
-            </Button>
-          </div>
-        )}
-      </PageHeader>
-      {isMobile ? (
-        <div className="flex flex-col gap-4">
-          {form}
-          {preview}
+                  </AlertDialogTrigger>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+                <AlertDialogDescription>Nothing has been sent. This removes the draft for good.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep it</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={destroy}>
+                  Delete draft
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
+      </div>
+      {isMobile ? (
+        <Tabs value={mobileView} onValueChange={setMobileView}>
+          <TabsList>
+            <TabsTrigger value="edit">Edit</TabsTrigger>
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+          </TabsList>
+          <TabsContent value="edit" className="pt-2">
+            {form}
+          </TabsContent>
+          <TabsContent value="preview" className="pt-2">
+            {previewPane}
+          </TabsContent>
+        </Tabs>
       ) : (
         <div className="h-[calc(100svh-10rem)] min-h-[32rem]">
           <ResizablePanelGroup orientation="horizontal">
-            <ResizablePanel defaultSize="50%" minSize="30%" className="overflow-y-auto">
+            <ResizablePanel defaultSize="50%" minSize="35%" className="overflow-y-auto">
               {form}
             </ResizablePanel>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize="50%" minSize="30%">
-              {preview}
+              {previewPane}
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>

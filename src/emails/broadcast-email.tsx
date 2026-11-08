@@ -1,22 +1,22 @@
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Img,
-  Link,
-  Markdown,
-  Preview,
-  Section,
-  Text,
-} from "@react-email/components"
+import { Body, Button, Container, Head, Hr, Html, Img, Link, Preview, Section, Text } from "@react-email/components"
+import type { CSSProperties, ReactNode } from "react"
 
-import type { BroadcastContent, LayoutKey } from "@/lib/broadcasts/content"
-import { photoAlt } from "@/lib/broadcasts/photos"
+import {
+  COLORS,
+  FONTS,
+  SPACING,
+  isDarkColor,
+  normalizeLink,
+  type Block,
+  type ColorKey,
+  type EmailContent,
+  type ImageBlock,
+  type ImageTextBlock,
+  type RichNode,
+} from "@/lib/broadcasts/blocks"
 import { brand, fontFamily, light } from "@/theme/tokens"
+
+import { RichText, type RichTextTheme } from "./rich-text"
 
 export type EmailFooter = {
   brandName: string
@@ -26,127 +26,289 @@ export type EmailFooter = {
 }
 
 const WEBSITE_URL = "https://www.old-mountain.com"
-const PAGE_WIDTH = "600px"
+const PAGE_WIDTH = 600
+const GUTTER = 32
+const COLUMN_WIDTH = 256
 
-const kickerBase = {
-  color: brand.gold,
-  fontFamily: fontFamily.emailKickerStack,
-  fontSize: "13px",
-  fontWeight: 700,
-  letterSpacing: "0.18em",
-  lineHeight: "20px",
-  textTransform: "uppercase" as const,
-}
-const headingBase = {
-  fontFamily: fontFamily.emailHeadingStack,
-  fontWeight: 400,
-}
-const button = {
-  backgroundColor: brand.gold,
-  borderRadius: "4px",
-  color: brand.dark,
-  display: "inline-block",
-  fontFamily: fontFamily.emailKickerStack,
-  fontSize: "13px",
-  fontWeight: 700,
-  letterSpacing: "0.14em",
-  marginTop: "12px",
-  padding: "14px 26px",
-  textDecoration: "none",
-  textTransform: "uppercase" as const,
-}
-const footerText = {
-  color: light["muted-foreground"],
-  fontSize: "12px",
-  lineHeight: "18px",
-  margin: "0 0 4px",
-  textAlign: "center" as const,
-}
-// How logos read when an inbox has images turned off.
 const logoAlt = { fontSize: "16px", fontWeight: 600, letterSpacing: "0.06em", lineHeight: "22px" }
-const footerLink = { color: light["muted-foreground"], textDecoration: "underline" }
-const markdownStyles = {
-  p: { color: brand.textDark, fontSize: "17px", lineHeight: "27px", margin: "0 0 20px" },
-  li: { color: brand.textDark, fontSize: "17px", lineHeight: "27px" },
-  h2: { ...headingBase, color: brand.textDark, fontSize: "24px", lineHeight: "30px", margin: "28px 0 10px" },
-  h3: { ...headingBase, color: brand.textDark, fontSize: "20px", lineHeight: "26px", margin: "24px 0 8px" },
-  link: { color: brand.textDark, fontWeight: 700, textDecoration: "underline" },
+
+const LOGOS = {
+  lockup: { file: "logo-lockup.png", sizes: { small: 200, medium: 280, large: 360 }, color: brand.gold },
+  mark_gold: { file: "mark-gold.png", sizes: { small: 72, medium: 120, large: 180 }, color: brand.gold },
+  mark_cream: { file: "mark-cream.png", sizes: { small: 72, medium: 120, large: 180 }, color: brand.cream },
 }
 
-// Raw HTML isn't part of the writing surface, so it shows as typed instead of reaching inboxes.
-export function escapeHtml(markdown: string) {
-  return markdown.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+const BUTTONS: Record<string, CSSProperties> = {
+  gold: { backgroundColor: brand.gold, color: brand.dark },
+  olive: { backgroundColor: brand.olive, color: brand.cream },
+  dark: { backgroundColor: brand.dark, color: brand.cream },
+  outline: { border: `2px solid ${brand.gold}`, color: brand.textDark },
+}
+
+function themeFor(background: ColorKey): RichTextTheme {
+  return isDarkColor(background) ? { text: brand.cream, label: brand.gold } : { text: brand.textDark, label: brand.gold }
 }
 
 function absolute(url: string, appUrl: string) {
   return url.startsWith("/") ? `${appUrl}${url}` : url
 }
 
-function BodyText({ markdown }: { markdown: string | null }) {
-  if (!markdown?.trim()) return null
-  return (
-    <Markdown markdownCustomStyles={markdownStyles} markdownContainerStyles={{ margin: 0 }}>
-      {escapeHtml(markdown)}
-    </Markdown>
-  )
-}
+type RenderContext = { appUrl: string; paper: ColorKey; editing: boolean; brandName: string }
 
-function CallToAction({ email, align }: { email: BroadcastContent; align?: "center" }) {
-  if (!email.cta_label?.trim() || !email.cta_url?.trim()) return null
+function BlockSection({
+  block,
+  context,
+  bleed,
+  align,
+  children,
+}: {
+  block: Block
+  context: RenderContext
+  bleed?: boolean
+  align?: "left" | "center" | "right"
+  children: ReactNode
+}) {
+  const y = SPACING[block.spacing]
   return (
-    <Section style={{ textAlign: align ?? "left" }}>
-      <Button href={email.cta_url} style={button}>
-        {email.cta_label}
-      </Button>
+    <Section
+      {...(context.editing ? { "data-block-id": block.id } : {})}
+      style={{
+        ...(block.background ? { backgroundColor: COLORS[block.background].value } : {}),
+        padding: `${block.spacing === "none" ? 0 : Math.round(y / 2)}px ${bleed ? 0 : GUTTER}px`,
+        textAlign: align ?? "left",
+      }}
+    >
+      {children}
     </Section>
   )
 }
 
-function Photo({ email, appUrl, rounded }: { email: BroadcastContent; appUrl: string; rounded?: boolean }) {
-  if (!email.image_url) return null
+// Only in the editor, so a new block can be seen and clicked before it has anything in it.
+function EditingPlaceholder({ children }: { children: ReactNode }) {
   return (
+    <div
+      style={{
+        border: `2px dashed ${brand.gold}`,
+        borderRadius: "8px",
+        color: light["muted-foreground"],
+        fontFamily: fontFamily.emailStack,
+        fontSize: "15px",
+        padding: "28px 16px",
+        textAlign: "center",
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function photoMargins(align: string): CSSProperties {
+  if (align === "center") return { marginLeft: "auto", marginRight: "auto" }
+  if (align === "right") return { marginLeft: "auto" }
+  return {}
+}
+
+function PhotoBlock({ block, context }: { block: ImageBlock; context: RenderContext }) {
+  if (!block.src) {
+    return context.editing ? (
+      <BlockSection block={block} context={context}>
+        <EditingPlaceholder>Add a photo</EditingPlaceholder>
+      </BlockSection>
+    ) : null
+  }
+  const available = block.bleed ? PAGE_WIDTH : PAGE_WIDTH - GUTTER * 2
+  const width = Math.round((available * block.width) / 100)
+  const href = normalizeLink(block.link)
+  const image = (
     <Img
-      src={absolute(email.image_url, appUrl)}
-      alt={email.image_alt ?? photoAlt(email.image_url) ?? ""}
-      width="600"
-      style={{ borderRadius: rounded ? "12px" : 0, display: "block", height: "auto", width: "100%" }}
+      src={absolute(block.src, context.appUrl)}
+      alt={block.alt}
+      width={width}
+      style={{
+        borderRadius: block.rounded ? "12px" : 0,
+        display: "block",
+        height: "auto",
+        maxWidth: `${width}px`,
+        width: `${block.width}%`,
+        ...photoMargins(block.align),
+      }}
     />
   )
-}
-
-function Lockup({ footer }: { footer: EmailFooter }) {
   return (
-    <Section style={{ padding: "36px 32px 28px", textAlign: "center" }}>
-      <Img
-        src={`${footer.appUrl}/email/logo-lockup.png`}
-        alt={footer.brandName}
-        width="280"
-        style={{ ...logoAlt, color: brand.gold, display: "inline-block", height: "auto", maxWidth: "280px", width: "70%" }}
-      />
-    </Section>
+    <BlockSection block={block} context={context} bleed={block.bleed} align={block.align}>
+      {href ? <Link href={href}>{image}</Link> : image}
+    </BlockSection>
   )
 }
 
-function Footer({ brandName, postalAddress, unsubscribeUrl, appUrl }: EmailFooter) {
+function PhotoBesideText({ block, context }: { block: ImageTextBlock; context: RenderContext }) {
+  const column: CSSProperties = {
+    display: "inline-block",
+    maxWidth: `${COLUMN_WIDTH}px`,
+    textAlign: "left",
+    verticalAlign: "top",
+    width: "100%",
+  }
+  const photo = (
+    <div key="photo" style={column}>
+      {!block.src && context.editing && <EditingPlaceholder>Add a photo</EditingPlaceholder>}
+      {block.src && (
+        <Img
+          src={absolute(block.src, context.appUrl)}
+          alt={block.alt}
+          width={COLUMN_WIDTH}
+          style={{ borderRadius: block.rounded ? "12px" : 0, display: "block", height: "auto", marginBottom: "12px", width: "100%" }}
+        />
+      )}
+    </div>
+  )
+  const words = (
+    <div key="words" style={column}>
+      <RichText doc={block.doc} theme={themeFor(block.background ?? context.paper)} />
+    </div>
+  )
   return (
-    <Section style={{ padding: "12px 32px 36px" }}>
+    <BlockSection block={block} context={context} align="center">
+      {block.side === "left" ? [photo, " ", words] : [words, " ", photo]}
+    </BlockSection>
+  )
+}
+
+function hasText(node: RichNode): boolean {
+  return Boolean(node.text?.trim()) || (node.content ?? []).some(hasText)
+}
+
+function BlockView({ block, context }: { block: Block; context: RenderContext }) {
+  switch (block.type) {
+    case "logo": {
+      const logo = LOGOS[block.variant]
+      const width = logo.sizes[block.size]
+      return (
+        <BlockSection block={block} context={context} align={block.align}>
+          <Img
+            src={`${context.appUrl}/email/${logo.file}`}
+            alt={context.brandName}
+            width={width}
+            style={{ ...logoAlt, color: logo.color, display: "inline-block", height: "auto", maxWidth: `${width}px`, width: "70%" }}
+          />
+        </BlockSection>
+      )
+    }
+    case "text":
+      return (
+        <BlockSection block={block} context={context}>
+          {context.editing && !hasText(block.doc) ? (
+            <EditingPlaceholder>Click to write</EditingPlaceholder>
+          ) : (
+            <RichText doc={block.doc} theme={themeFor(block.background ?? context.paper)} />
+          )}
+        </BlockSection>
+      )
+    case "image":
+      return <PhotoBlock block={block} context={context} />
+    case "image_text":
+      return <PhotoBesideText block={block} context={context} />
+    case "button": {
+      if (!block.label.trim()) {
+        return context.editing ? (
+          <BlockSection block={block} context={context}>
+            <EditingPlaceholder>Add a button label</EditingPlaceholder>
+          </BlockSection>
+        ) : null
+      }
+      return (
+        <BlockSection block={block} context={context} align={block.align}>
+          <Button
+            href={normalizeLink(block.url) ?? WEBSITE_URL}
+            style={{
+              ...BUTTONS[block.style],
+              borderRadius: "4px",
+              boxSizing: "border-box",
+              display: block.fullWidth ? "block" : "inline-block",
+              fontFamily: FONTS[block.font].stack,
+              fontSize: "14px",
+              fontWeight: 700,
+              letterSpacing: block.font === "stamp" ? "0.12em" : "0.02em",
+              padding: "15px 28px",
+              textAlign: "center",
+              textDecoration: "none",
+              textTransform: block.font === "stamp" ? "uppercase" : "none",
+            }}
+          >
+            {block.label}
+          </Button>
+        </BlockSection>
+      )
+    }
+    case "divider":
+      return (
+        <BlockSection block={block} context={context}>
+          <Hr
+            style={{
+              borderColor: COLORS[block.color].value,
+              borderStyle: "solid",
+              borderWidth: "1px 0 0",
+              margin: "0 auto",
+              width: `${block.width}%`,
+            }}
+          />
+        </BlockSection>
+      )
+    case "spacer": {
+      const height = SPACING[block.spacing]
+      return (
+        <Section
+          {...(context.editing ? { "data-block-id": block.id } : {})}
+          style={block.background ? { backgroundColor: COLORS[block.background].value } : undefined}
+        >
+          <div style={{ fontSize: "1px", height: `${height}px`, lineHeight: `${height}px` }}>&nbsp;</div>
+        </Section>
+      )
+    }
+    case "links": {
+      const color = isDarkColor(block.background ?? context.paper) ? brand.cream : brand.textDark
+      return (
+        <BlockSection block={block} context={context} align={block.align}>
+          <Text style={{ color, fontFamily: fontFamily.emailStack, fontSize: "15px", lineHeight: "24px", margin: 0 }}>
+            {block.items.map((item, index) => (
+              <span key={index}>
+                {index > 0 && " · "}
+                <Link href={normalizeLink(item.url) ?? WEBSITE_URL} style={{ color, fontWeight: 700, textDecoration: "underline" }}>
+                  {item.label}
+                </Link>
+              </span>
+            ))}
+          </Text>
+        </BlockSection>
+      )
+    }
+  }
+}
+
+// Fixed in every email and not a block, so the law's requirements can't be deleted by accident.
+function Footer({ footer, paper }: { footer: EmailFooter; paper: ColorKey }) {
+  const color = isDarkColor(paper) ? brand.cream : light["muted-foreground"]
+  const text = { color, fontFamily: fontFamily.emailStack, fontSize: "12px", lineHeight: "18px", margin: "0 0 4px", textAlign: "center" as const }
+  const link = { color, textDecoration: "underline" }
+  return (
+    <Section style={{ padding: `32px ${GUTTER}px 36px` }}>
       <Hr style={{ borderColor: brand.gold, margin: "0 0 28px", opacity: 0.5 }} />
       <Section style={{ marginBottom: "14px", textAlign: "center" }}>
         <Img
-          src={`${appUrl}/email/mark-gold.png`}
+          src={`${footer.appUrl}/email/mark-gold.png`}
           alt=""
           width="72"
           style={{ display: "inline-block", height: "auto", width: "72px" }}
         />
       </Section>
-      <Text style={footerText}>{brandName}</Text>
-      <Text style={footerText}>{postalAddress}</Text>
-      <Text style={{ ...footerText, marginTop: "12px" }}>
-        <Link href={WEBSITE_URL} style={footerLink}>
+      <Text style={text}>{footer.brandName}</Text>
+      <Text style={text}>{footer.postalAddress}</Text>
+      <Text style={{ ...text, marginTop: "12px" }}>
+        <Link href={WEBSITE_URL} style={link}>
           old-mountain.com
         </Link>
         {" · "}
-        <Link href={unsubscribeUrl} style={footerLink}>
+        <Link href={footer.unsubscribeUrl} style={link}>
           Unsubscribe
         </Link>
       </Text>
@@ -154,100 +316,33 @@ function Footer({ brandName, postalAddress, unsubscribeUrl, appUrl }: EmailFoote
   )
 }
 
-// The founders' note: logo, rounded photo, a small label to the right, then their words.
-function Newsletter({ email, footer }: { email: BroadcastContent; footer: EmailFooter }) {
-  return (
-    <>
-      <Lockup footer={footer} />
-      <Section style={{ padding: "0 16px" }}>
-        <Photo email={email} appUrl={footer.appUrl} rounded />
-      </Section>
-      {email.kicker && <Text style={{ ...kickerBase, margin: "14px 28px 0", textAlign: "right" }}>{email.kicker}</Text>}
-      <Section style={{ padding: "24px 36px 12px" }}>
-        {email.heading && (
-          <Heading as="h1" style={{ ...headingBase, color: brand.textDark, fontSize: "30px", lineHeight: "36px", margin: "0 0 18px" }}>
-            {email.heading}
-          </Heading>
-        )}
-        <BodyText markdown={email.body_markdown} />
-        <CallToAction email={email} />
-      </Section>
-    </>
-  )
-}
-
-// News that stands on its own: the dark banner the brand uses for pure announcements.
-function Announcement({ email, footer }: { email: BroadcastContent; footer: EmailFooter }) {
-  return (
-    <>
-      <Section style={{ backgroundColor: brand.dark, padding: "44px 32px 48px", textAlign: "center" }}>
-        <Img
-          src={`${footer.appUrl}/email/mark-cream.png`}
-          alt={footer.brandName}
-          width="120"
-          style={{ ...logoAlt, color: brand.cream, display: "inline-block", height: "auto", marginBottom: "28px", width: "120px" }}
-        />
-        {email.kicker && <Text style={{ ...kickerBase, margin: "0 0 12px" }}>{email.kicker}</Text>}
-        {email.heading && (
-          <Heading as="h1" style={{ ...headingBase, color: brand.cream, fontSize: "38px", lineHeight: "44px", margin: 0 }}>
-            {email.heading}
-          </Heading>
-        )}
-      </Section>
-      <Photo email={email} appUrl={footer.appUrl} />
-      <Section style={{ padding: "32px 36px 12px" }}>
-        <BodyText markdown={email.body_markdown} />
-        <CallToAction email={email} align="center" />
-      </Section>
-    </>
-  )
-}
-
-// A place or departure: the photo does the selling, on cream paper.
-function TripSpotlight({ email, footer }: { email: BroadcastContent; footer: EmailFooter }) {
-  return (
-    <>
-      <Lockup footer={footer} />
-      <Photo email={email} appUrl={footer.appUrl} />
-      <Section style={{ padding: "30px 36px 12px" }}>
-        {email.kicker && <Text style={{ ...kickerBase, margin: "0 0 10px" }}>{email.kicker}</Text>}
-        {email.heading && (
-          <Heading as="h1" style={{ ...headingBase, color: brand.textDark, fontSize: "34px", lineHeight: "40px", margin: "0 0 18px" }}>
-            {email.heading}
-          </Heading>
-        )}
-        <BodyText markdown={email.body_markdown} />
-        <CallToAction email={email} />
-      </Section>
-    </>
-  )
-}
-
-const LAYOUT_COMPONENTS = { letter: Newsletter, announcement: Announcement, trip_spotlight: TripSpotlight }
-
 export function BroadcastEmail({
-  layout,
-  email,
+  content,
+  preheader,
   footer,
+  editing = false,
 }: {
-  layout: LayoutKey
-  email: BroadcastContent
+  content: EmailContent
+  preheader: string | null
   footer: EmailFooter
+  editing?: boolean
 }) {
-  const Layout = LAYOUT_COMPONENTS[layout]
-  const paper = layout === "trip_spotlight" ? light.card : "#ffffff"
-  const pageBackground = layout === "trip_spotlight" ? brand.cream : "#ffffff"
+  const context: RenderContext = { appUrl: footer.appUrl, paper: content.paper, editing, brandName: footer.brandName }
 
   return (
     <Html lang="en">
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
       </Head>
-      {email.preheader && <Preview>{email.preheader}</Preview>}
-      <Body style={{ backgroundColor: pageBackground, fontFamily: fontFamily.emailStack, margin: 0, padding: "0" }}>
-        <Container style={{ backgroundColor: paper, margin: "0 auto", maxWidth: PAGE_WIDTH }}>
-          <Layout email={email} footer={footer} />
-          <Footer {...footer} />
+      {preheader && <Preview>{preheader}</Preview>}
+      <Body style={{ backgroundColor: COLORS[content.page].value, fontFamily: fontFamily.emailStack, margin: 0, padding: 0 }}>
+        <Container style={{ backgroundColor: COLORS[content.paper].value, margin: "0 auto", maxWidth: `${PAGE_WIDTH}px` }}>
+          {content.blocks.map((block) => (
+            <BlockView key={block.id} block={block} context={context} />
+          ))}
+          <Footer footer={footer} paper={content.paper} />
         </Container>
       </Body>
     </Html>

@@ -93,7 +93,7 @@ describe("planSync", () => {
 
   it("never includes opt-out columns in anything it writes", () => {
     const plan = planSync(
-      [contact({ status: "Paid" }), contact({ recordId: "recDaviQuinn00002", email: "davi.quinn@example.com" })],
+      [contact({ groupSize: "2 people" }), contact({ recordId: "recDaviQuinn00002", email: "davi.quinn@example.com" })],
       [subscriber()],
       STATUSES
     )
@@ -122,14 +122,55 @@ describe("planSync", () => {
     expect(plan.updates[0].changed).toEqual(["email"])
   })
 
-  it("skips contacts with missing or invalid emails", () => {
+  it("brings in a contact with no email, and skips one with an invalid email", () => {
     const plan = planSync(
       [contact({ recordId: "recA", email: null }), contact({ recordId: "recB", email: "not an email" })],
       [],
       STATUSES
     )
+    expect(plan.creates).toMatchObject([{ airtable_record_id: "recA", email: null, first_name: "Mara" }])
+    expect(plan.skipped.map((row) => row.reason)).toEqual(["invalid_email"])
+  })
+
+  it("keeps several contacts with no email apart", () => {
+    const plan = planSync(
+      [contact({ recordId: "recA", email: null }), contact({ recordId: "recB", email: null, name: "Davi Quinn" })],
+      [],
+      STATUSES
+    )
+    expect(plan.creates).toHaveLength(2)
+    expect(plan.skipped).toEqual([])
+  })
+
+  it("finds a no-email contact again by its record", () => {
+    const plan = planSync(
+      [contact({ email: null })],
+      [subscriber({ email: null })],
+      STATUSES
+    )
     expect(plan.creates).toEqual([])
-    expect(plan.skipped.map((row) => row.reason)).toEqual(["no_email", "invalid_email"])
+    expect(plan.unchanged).toBe(1)
+  })
+
+  it("adds an email when one appears in Airtable", () => {
+    const plan = planSync([contact()], [subscriber({ email: null })], STATUSES)
+    expect(plan.updates[0].changed).toEqual(["email"])
+  })
+
+  it("doesn't erase an email when the Airtable cell goes blank", () => {
+    const plan = planSync([contact({ email: null })], [subscriber()], STATUSES)
+    expect(plan.updates).toEqual([])
+    expect(plan.unchanged).toBe(1)
+  })
+
+  it("never overwrites a status the app owns", () => {
+    const plan = planSync([contact({ status: "Paid" })], [subscriber({ status: "Emailed" })], STATUSES)
+    expect(plan.updates).toEqual([])
+    expect(plan.unchanged).toBe(1)
+  })
+
+  it("uses Airtable's status only as a new contact's starting point", () => {
+    expect(planSync([contact({ status: "Connected With" })], [], STATUSES).creates[0].status).toBe("Connected With")
   })
 
   it("dedupes by email, case-insensitively, keeping the oldest record", () => {
@@ -157,19 +198,18 @@ describe("planSync", () => {
 
   it("doesn't overwrite an app edit that hasn't reached Airtable yet", () => {
     const plan = planSync(
-      [contact({ status: "New" })],
-      [subscriber({ status: "Paid", airtable_push_pending: true })],
+      [contact({ name: "Mara Okafor-Lee" })],
+      [subscriber({ airtable_push_pending: true })],
       STATUSES
     )
     expect(plan.updates).toEqual([])
     expect(plan.skipped[0].reason).toBe("pending_app_change")
   })
 
-  it("reports unknown statuses and keeps the current one", () => {
-    const plan = planSync([contact({ status: "Waitlist" })], [subscriber({ status: "Paid" })], STATUSES)
+  it("reports an unknown status on a new contact and leaves it blank", () => {
+    const plan = planSync([contact({ status: "Waitlist" })], [], STATUSES)
     expect(plan.unknownStatuses).toEqual(["Waitlist"])
-    expect(plan.updates).toEqual([])
-    expect(plan.unchanged).toBe(1)
+    expect(plan.creates[0].status).toBeNull()
   })
 
   it("does nothing to subscribers whose Airtable row is gone", () => {

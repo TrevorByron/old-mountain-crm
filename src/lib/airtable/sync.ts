@@ -58,16 +58,16 @@ export async function pushToAirtable(subscriberId: string) {
   try {
     const { data: row, error } = await admin
       .from("subscribers")
-      .select("email, first_name, last_name, status, source, unsubscribed_at, suppressed, airtable_record_id")
+      .select("email, first_name, last_name, phone, source, unsubscribed_at, suppressed, airtable_record_id")
       .eq("id", subscriberId)
       .single()
     if (error) throw new Error(error.message)
 
     const fields: Record<string, unknown> = {
       [AIRTABLE_FIELDS.name]: [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
-      [AIRTABLE_FIELDS.email]: row.email,
-      [AIRTABLE_FIELDS.status]: row.status,
     }
+    if (row.email) fields[AIRTABLE_FIELDS.email] = row.email
+    if (row.phone) fields[AIRTABLE_FIELDS.phone] = row.phone
     const optOutField = process.env.AIRTABLE_OPT_OUT_FIELD_ID
     if (optOutField) fields[optOutField] = Boolean(row.unsubscribed_at) || row.suppressed
 
