@@ -932,7 +932,7 @@ export function BroadcastEditor({
       ) : (
         <div className="h-[calc(100svh-10rem)] min-h-[32rem]">
           <ResizablePanelGroup orientation="horizontal">
-            <ResizablePanel defaultSize="50%" minSize="35%" className="overflow-y-auto">
+            <ResizablePanel defaultSize="50%" minSize="35%" className="overflow-y-auto p-1 pr-3">
               {form}
             </ResizablePanel>
             <ResizableHandle withHandle />

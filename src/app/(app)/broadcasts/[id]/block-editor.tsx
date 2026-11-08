@@ -436,7 +436,7 @@ function SortableBlock({
       }}
       style={{ transform: CSS.Translate.toString(transform), transition, zIndex: isDragging ? 10 : undefined }}
     >
-      <Card size="sm" className={selected ? "gap-2 py-1 ring-2 ring-ring" : "gap-0 py-1"}>
+      <Card size="sm" className={selected ? "gap-2 pt-1 pb-3 ring-2 ring-ring" : "gap-0 py-1"}>
         <div className="flex items-center gap-1 px-1">
           {!disabled && (
             <Button
