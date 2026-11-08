@@ -58,6 +58,7 @@ export async function previewHtml(layout: LayoutKey, email: BroadcastContent, en
     brandName: env.BRAND_NAME || "Old Mountain Tours & Explorations",
     postalAddress: env.SENDER_POSTAL_ADDRESS?.trim() || "[Postal address not set yet]",
     unsubscribeUrl: `${env.APP_URL ?? ""}/unsubscribe`,
+    appUrl: env.APP_URL ?? "",
   })
   return html
 }
@@ -75,6 +76,7 @@ export async function composeEmail(
     brandName: config.brandName,
     postalAddress: config.postalAddress,
     unsubscribeUrl: `${config.appUrl}/unsubscribe?token=${token}`,
+    appUrl: config.appUrl,
   })
   return {
     from: config.from,

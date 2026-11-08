@@ -2,7 +2,20 @@
 // from Phase 2, the React Email layouts. Colors come from www.old-mountain.com.
 export const fontFamily = {
   name: "Roboto",
-  emailStack: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+  emailStack: "Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif",
+  // Inboxes can't load the brand's Sunday April and Chainprinter, so these are the closest safe fonts.
+  emailHeadingStack: "Georgia, 'Times New Roman', Times, serif",
+  emailKickerStack: "'Courier New', Courier, monospace",
+}
+
+// From company/brand-guidelines.md in the Old Mountain workspace.
+export const brand = {
+  cream: "#F0E6D3",
+  gold: "#C4A96B",
+  dark: "#0E1209",
+  deep: "#141A10",
+  olive: "#2C3A22",
+  textDark: "#1A1A14",
 }
 
 export const radius = "0.5rem"

@@ -1,8 +1,12 @@
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { verifyUnsubscribeToken } from "@/lib/unsubscribe-token"
 
-import { LAYOUTS, missingContent, type BroadcastContent } from "./content"
+import { LAYOUTS, broadcastContentSchema, missingContent, type BroadcastContent } from "./content"
+import { EMAIL_PHOTOS } from "./photos"
 import {
   batchIdempotencyKey,
   composeEmail,
@@ -24,6 +28,7 @@ const CONFIG: SendConfig = {
 const CONTENT: BroadcastContent = {
   subject: "Two seats left for July 2027",
   preheader: "The Serengeti departure is nearly full.",
+  kicker: "July newsletter",
   heading: "July in the Serengeti",
   body_markdown: "We have **two seats** left on the July departure.\n\n- Tented camps\n- Walking safaris",
   cta_label: "Hold my seat",
@@ -54,19 +59,55 @@ describe.each(LAYOUTS.map((layout) => layout.key))("%s layout", (layout) => {
   it("renders the content", async () => {
     const { html } = await composeEmail(layout, CONTENT, RECIPIENT, CONFIG)
     expect(html).toContain("July in the Serengeti")
+    expect(html).toContain("July newsletter")
     expect(html).toContain("<strong")
     expect(html).toContain("https://www.old-mountain.com/july-2027")
+    expect(html).toContain("serengeti.jpg")
+  })
+
+  it("uses the brand's real logo and gold, hosted by the app", async () => {
+    const { html } = await composeEmail(layout, CONTENT, RECIPIENT, CONFIG)
+    expect(html).toContain(`${CONFIG.appUrl}/email/mark-gold.png`)
+    expect(html.toLowerCase()).toContain("#c4a96b")
+  })
+
+  it("leaves out the photo and label when they're empty", async () => {
+    const { html } = await composeEmail(layout, { ...CONTENT, image_url: null, kicker: null }, RECIPIENT, CONFIG)
+    expect(html).not.toContain("serengeti.jpg")
+    expect(html).not.toContain("July newsletter")
+  })
+})
+
+describe("photo library", () => {
+  it("has a real file behind every photo", () => {
+    for (const photo of EMAIL_PHOTOS) {
+      expect(existsSync(join(process.cwd(), "public", photo.path)), photo.path).toBe(true)
+      expect(photo.alt).not.toBe("")
+    }
+  })
+
+  it("resolves a library photo to the app's address and fills in its description", async () => {
+    const { html } = await composeEmail(
+      "trip_spotlight",
+      { ...CONTENT, image_url: EMAIL_PHOTOS[0].path, image_alt: null },
+      RECIPIENT,
+      CONFIG
+    )
+    expect(html).toContain(`src="${CONFIG.appUrl}${EMAIL_PHOTOS[0].path}"`)
+    expect(html).toContain(EMAIL_PHOTOS[0].alt)
+  })
+
+  it("accepts library paths and links, but no other paths", () => {
+    const parse = (image_url: string) => broadcastContentSchema.safeParse({ image_url }).success
+    expect(parse(EMAIL_PHOTOS[0].path)).toBe(true)
+    expect(parse("https://www.old-mountain.com/lion.jpg")).toBe(true)
+    expect(parse("/subscribers")).toBe(false)
+    expect(parse("/email/photos/../../secret.jpg")).toBe(false)
+    expect(parse("javascript:alert(1)")).toBe(false)
   })
 })
 
 describe("composeEmail", () => {
-  it("only shows the photo in the trip spotlight", async () => {
-    const trip = await composeEmail("trip_spotlight", CONTENT, RECIPIENT, CONFIG)
-    const letter = await composeEmail("letter", CONTENT, RECIPIENT, CONFIG)
-    expect(trip.html).toContain("serengeti.jpg")
-    expect(letter.html).not.toContain("serengeti.jpg")
-  })
-
   it("doesn't let raw HTML from the body through", async () => {
     const { html } = await composeEmail(
       "letter",

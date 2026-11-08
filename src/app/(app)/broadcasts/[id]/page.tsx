@@ -20,7 +20,7 @@ export default async function BroadcastPage({ params }: PageProps<"/broadcasts/[
   const { data: broadcast, error } = await supabase
     .from("broadcasts")
     .select(
-      "id, name, template_id, subject, preheader, heading, body_markdown, cta_label, cta_url, image_url, image_alt, audience_filter, state, scheduled_at, sent_at, last_error"
+      "id, name, template_id, subject, preheader, kicker, heading, body_markdown, cta_label, cta_url, image_url, image_alt, audience_filter, state, scheduled_at, sent_at, last_error"
     )
     .eq("id", id)
     .maybeSingle()

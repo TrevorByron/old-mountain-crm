@@ -9,7 +9,7 @@ import type { BroadcastContent, LayoutKey } from "./content"
 
 // Resend's limit for one batch call.
 const BATCH_SIZE = 100
-const CONTENT_COLUMNS = "subject, preheader, heading, body_markdown, cta_label, cta_url, image_url, image_alt"
+const CONTENT_COLUMNS = "subject, preheader, kicker, heading, body_markdown, cta_label, cta_url, image_url, image_alt"
 
 export const BROADCAST_SEND_EVENT = "broadcast/send.requested"
 

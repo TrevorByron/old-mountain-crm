@@ -1,5 +1,7 @@
 "use server"
 
+import { randomUUID } from "node:crypto"
+
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
@@ -14,12 +16,14 @@ import {
   missingContent,
   type LayoutKey,
 } from "@/lib/broadcasts/content"
+import { EMAIL_IMAGES_BUCKET, MAX_UPLOAD_BYTES, prepareEmailPhoto } from "@/lib/broadcasts/photo-upload"
 import { BROADCAST_SEND_EVENT, resendClient } from "@/lib/broadcasts/sending"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 const layoutSchema = z.enum(LAYOUTS.map((layout) => layout.key) as [LayoutKey, ...LayoutKey[]])
 const idSchema = z.uuid()
 
-const CONTENT_COLUMNS = "subject, preheader, heading, body_markdown, cta_label, cta_url, image_url, image_alt"
+const CONTENT_COLUMNS = "subject, preheader, kicker, heading, body_markdown, cta_label, cta_url, image_url, image_alt"
 
 export async function createBroadcast(input: unknown) {
   const layout = layoutSchema.safeParse(input)
@@ -68,6 +72,30 @@ export async function saveBroadcast(input: unknown) {
   if (data.length === 0) return { ok: false as const, error: "Only drafts can be edited." }
   revalidatePath("/broadcasts")
   return { ok: true as const }
+}
+
+export async function uploadPhoto(formData: FormData) {
+  await requireTeamMember()
+
+  const file = formData.get("photo")
+  if (!(file instanceof File) || file.size === 0) return { ok: false as const, error: "Choose a photo to upload." }
+  if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: "That photo is too large. Try a smaller one." }
+
+  let photo: Buffer
+  try {
+    photo = await prepareEmailPhoto(Buffer.from(await file.arrayBuffer()))
+  } catch {
+    return { ok: false as const, error: "Couldn't read that file. Try a JPG or PNG." }
+  }
+
+  const storage = createAdminClient().storage.from(EMAIL_IMAGES_BUCKET)
+  const path = `${randomUUID()}.jpg`
+  const { error } = await storage.upload(path, photo, { contentType: "image/jpeg" })
+  if (error) {
+    console.error("Photo upload failed:", error.message)
+    return { ok: false as const, error: "Couldn't upload the photo. Try again." }
+  }
+  return { ok: true as const, url: storage.getPublicUrl(path).data.publicUrl }
 }
 
 // A half-typed link shouldn't blank the preview, so it's left out until it's valid.

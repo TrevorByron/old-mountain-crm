@@ -38,7 +38,8 @@ export async function proxy(request: NextRequest) {
   return response
 }
 
-// Public paths stay out: login, the magic-link callback, unsubscribe and all API routes.
+// Public paths stay out: login, the magic-link callback, unsubscribe, all API routes and
+// the images inside sent emails, which load for people who aren't signed in.
 export const config = {
-  matcher: ["/((?!api|login|auth|unsubscribe|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api|login|auth|unsubscribe|email/|_next/static|_next/image|favicon.ico).*)"],
 }

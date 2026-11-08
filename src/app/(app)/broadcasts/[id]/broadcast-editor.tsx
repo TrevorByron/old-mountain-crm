@@ -41,6 +41,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { EMAIL_PHOTOS } from "@/lib/broadcasts/photos"
 import {
   broadcastContentSchema,
   isAudienceEmpty,
@@ -58,6 +59,7 @@ import {
   resumeBroadcast,
   saveBroadcast,
   sendTest,
+  uploadPhoto,
 } from "../actions"
 
 type Broadcast = {
@@ -66,6 +68,7 @@ type Broadcast = {
   template_id: string | null
   subject: string | null
   preheader: string | null
+  kicker: string | null
   heading: string | null
   body_markdown: string | null
   cta_label: string | null
@@ -80,6 +83,28 @@ type Broadcast = {
 }
 
 type Template = { id: string; name: string; layout_key: string }
+
+const NO_PHOTO = "__none__"
+const YOUR_PHOTO = "__yours__"
+const LIBRARY_ITEMS = [
+  { label: "No photo", value: NO_PHOTO },
+  ...EMAIL_PHOTOS.map((photo) => ({ label: photo.label, value: photo.path as string })),
+]
+const MAX_PHOTO_EDGE = 2400
+
+// Phone photos are often over the upload limit, so they're shrunk before leaving the browser.
+async function shrinkPhoto(file: File) {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, MAX_PHOTO_EDGE / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't read photo"))), "image/jpeg", 0.9)
+  })
+}
 
 const dateTimeFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" })
 
@@ -178,6 +203,7 @@ export function BroadcastEditor({
   const [fields, setFields] = useState({
     subject: broadcast.subject ?? "",
     preheader: broadcast.preheader ?? "",
+    kicker: broadcast.kicker ?? "",
     heading: broadcast.heading ?? "",
     body_markdown: broadcast.body_markdown ?? "",
     cta_label: broadcast.cta_label ?? "",
@@ -185,6 +211,7 @@ export function BroadcastEditor({
     image_url: broadcast.image_url ?? "",
     image_alt: broadcast.image_alt ?? "",
   })
+  const [isUploading, setIsUploading] = useState(false)
   const [audience, setAudience] = useState(broadcast.audience_filter)
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
   const [previewDocument, setPreviewDocument] = useState("")
@@ -195,6 +222,8 @@ export function BroadcastEditor({
   const [isPending, startTransition] = useTransition()
 
   const readOnly = broadcast.state !== "draft"
+  const hasOwnPhoto = Boolean(fields.image_url) && !EMAIL_PHOTOS.some((photo) => photo.path === fields.image_url)
+  const photoItems = hasOwnPhoto ? [...LIBRARY_ITEMS, { label: "Your photo", value: YOUR_PHOTO }] : LIBRARY_ITEMS
   const layout = (templates.find((template) => template.id === templateId)?.layout_key ?? "letter") as LayoutKey
   const fieldsKey = JSON.stringify(fields)
   const audienceKey = JSON.stringify(audience)
@@ -238,6 +267,31 @@ export function BroadcastEditor({
 
   function setField(key: keyof typeof fields, value: string) {
     setFields((previous) => ({ ...previous, [key]: value }))
+  }
+
+  function choosePhoto(value: string | null) {
+    if (value === YOUR_PHOTO) return
+    setFields((previous) => ({ ...previous, image_url: !value || value === NO_PHOTO ? "" : value, image_alt: "" }))
+  }
+
+  async function upload(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.target
+    const file = input.files?.[0]
+    if (!file) return
+
+    setIsUploading(true)
+    try {
+      const formData = new FormData()
+      formData.set("photo", await shrinkPhoto(file), "photo.jpg")
+      const result = await uploadPhoto(formData)
+      if (!result.ok) toast.error(result.error)
+      else setFields((previous) => ({ ...previous, image_url: result.url, image_alt: "" }))
+    } catch {
+      toast.error("Couldn't read that file. Try a JPG or PNG.")
+    } finally {
+      input.value = ""
+      setIsUploading(false)
+    }
   }
 
   const persist = () => saveBroadcast({ id: broadcast.id, name, template_id: templateId, ...fields, audience_filter: audience })
@@ -361,7 +415,7 @@ export function BroadcastEditor({
               <Input
                 id="broadcast-subject"
                 value={fields.subject}
-                placeholder="Two seats left for July in the Serengeti"
+                placeholder="October 2027: 12 seats, 11 days, 4 regions"
                 disabled={readOnly}
                 onChange={(event) => setField("subject", event.target.value)}
               />
@@ -377,6 +431,17 @@ export function BroadcastEditor({
               <FieldDescription>Shows after the subject in most inboxes.</FieldDescription>
             </Field>
             <Field>
+              <FieldLabel htmlFor="broadcast-kicker">Label</FieldLabel>
+              <Input
+                id="broadcast-kicker"
+                value={fields.kicker}
+                placeholder="November newsletter"
+                disabled={readOnly}
+                onChange={(event) => setField("kicker", event.target.value)}
+              />
+              <FieldDescription>The small gold line above the headline.</FieldDescription>
+            </Field>
+            <Field>
               <FieldLabel htmlFor="broadcast-heading">Heading</FieldLabel>
               <Input
                 id="broadcast-heading"
@@ -385,30 +450,58 @@ export function BroadcastEditor({
                 onChange={(event) => setField("heading", event.target.value)}
               />
             </Field>
-            {layout === "trip_spotlight" && (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="broadcast-image">Photo link</FieldLabel>
+            <Field>
+              <FieldLabel htmlFor="broadcast-photo">Photo</FieldLabel>
+              <Select
+                items={photoItems}
+                value={hasOwnPhoto ? YOUR_PHOTO : fields.image_url || NO_PHOTO}
+                disabled={readOnly}
+                onValueChange={choosePhoto}
+              >
+                <SelectTrigger id="broadcast-photo" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {photoItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            {!readOnly && (
+              <Field>
+                <FieldLabel htmlFor="broadcast-photo-upload">Or upload your own</FieldLabel>
+                <div className="flex items-center gap-2">
                   <Input
-                    id="broadcast-image"
-                    type="url"
-                    value={fields.image_url}
-                    placeholder="https://www.old-mountain.com/..."
-                    disabled={readOnly}
-                    onChange={(event) => setField("image_url", event.target.value)}
+                    id="broadcast-photo-upload"
+                    type="file"
+                    accept="image/*"
+                    disabled={isUploading}
+                    onChange={upload}
                   />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="broadcast-image-alt">Photo description</FieldLabel>
-                  <Input
-                    id="broadcast-image-alt"
-                    value={fields.image_alt}
-                    placeholder="Wildebeest crossing the Mara River"
-                    disabled={readOnly}
-                    onChange={(event) => setField("image_alt", event.target.value)}
-                  />
-                </Field>
-              </>
+                  {isUploading && <Spinner />}
+                </div>
+                <FieldDescription>
+                  JPG or PNG. Tall photos are cropped around the middle, and location data is removed.
+                </FieldDescription>
+              </Field>
+            )}
+            {hasOwnPhoto && (
+              <Field>
+                <FieldLabel htmlFor="broadcast-image-alt">Photo description</FieldLabel>
+                <Input
+                  id="broadcast-image-alt"
+                  value={fields.image_alt}
+                  placeholder="Elephants crossing a dry riverbed"
+                  disabled={readOnly}
+                  onChange={(event) => setField("image_alt", event.target.value)}
+                />
+                <FieldDescription>Shown if images are off, and read aloud by screen readers.</FieldDescription>
+              </Field>
             )}
             <Field>
               <FieldLabel htmlFor="broadcast-body">Body</FieldLabel>
@@ -600,9 +693,9 @@ export function BroadcastEditor({
       </ToggleGroup>
       <iframe
         title="Email preview"
-        sandbox=""
+        sandbox="allow-same-origin"
         srcDoc={previewDocument}
-        className="mx-auto h-[640px] w-full rounded-lg border bg-white md:h-full"
+        className="mx-auto h-[640px] w-full min-h-0 flex-1 rounded-lg border bg-white md:h-auto"
         style={{ maxWidth: device === "mobile" ? 375 : undefined }}
       />
     </div>
@@ -641,15 +734,17 @@ export function BroadcastEditor({
           {preview}
         </div>
       ) : (
-        <ResizablePanelGroup orientation="horizontal" className="min-h-[calc(100svh-10rem)]">
-          <ResizablePanel defaultSize="50%" minSize="30%" className="max-h-[calc(100svh-10rem)] overflow-y-auto">
-            {form}
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize="50%" minSize="30%">
-            {preview}
-          </ResizablePanel>
-        </ResizablePanelGroup>
+        <div className="h-[calc(100svh-10rem)] min-h-[32rem]">
+          <ResizablePanelGroup orientation="horizontal">
+            <ResizablePanel defaultSize="50%" minSize="30%" className="overflow-y-auto">
+              {form}
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize="50%" minSize="30%">
+              {preview}
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
       )}
     </>
   )

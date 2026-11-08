@@ -21,6 +21,8 @@ const SUPABASE_STUBS = `
     select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
   $$;
   grant usage on schema auth to authenticated, anon;
+  create schema storage;
+  create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
 `
 
 let db: PGlite

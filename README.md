@@ -95,6 +95,14 @@ To run sends locally, set `INNGEST_DEV=1` and run:
 npx inngest-cli@latest dev
 ```
 
+### Email design
+
+The three layouts are in `src/emails/broadcast-email.tsx`, following the brand guidelines in the Old Mountain workspace (`company/brand-guidelines.md`). Inboxes can't load the brand's custom fonts, so headlines use Georgia and labels use Courier New.
+
+Logos and the photo library are in `public/email/` and load from `APP_URL`, so they only appear for recipients once the app is deployed. To add a library photo, resize it to 1200 by 500, strip its metadata, and list it in `src/lib/broadcasts/photos.ts`.
+
+Photos uploaded in the editor are resized, stripped of metadata and stored in the public `email-images` Supabase Storage bucket, so anyone with a photo's link can view it. They aren't deleted automatically, because emails already sent still load them.
+
 ## Signup endpoint
 
 `POST /api/subscribe` takes JSON or form data with `email`, optional `name` and `source`, and a hidden `website` honeypot field that must stay empty. It's limited to 10 requests per hour per IP. Set `SIGNUP_ALLOWED_ORIGINS` to the sites allowed to post; with none set, every request is refused.
