@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { requireTeamMember } from "@/lib/auth"
 import { companions, followUpState, lastContactLabel, tripInterestSummary } from "@/lib/people/profile"
 import {
@@ -201,6 +201,9 @@ export default async function PersonPage({ params }: PageProps<"/subscribers/[id
         </div>
 
         <Card>
+          <CardHeader>
+            <CardTitle>Notes and history</CardTitle>
+          </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <NoteComposer subscriberId={id} />
             <ActivityTimeline entries={timeline} />

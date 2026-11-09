@@ -122,6 +122,9 @@ export default async function TripPage({ params }: PageProps<"/trips/[id]">) {
       </p>
 
       <Card>
+        <CardHeader>
+          <CardTitle>Details</CardTitle>
+        </CardHeader>
         <CardContent>
           <TripDetails trip={trip as TripFields} />
         </CardContent>

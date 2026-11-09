@@ -3,7 +3,7 @@ import Link from "next/link"
 
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
@@ -68,6 +68,9 @@ export default async function TripsPage() {
         </Empty>
       ) : (
         <Card>
+          <CardHeader>
+            <CardTitle>All trips</CardTitle>
+          </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>

@@ -534,6 +534,9 @@ export function BroadcastEditor({
   const designTab = (
     <div className="flex flex-col gap-3">
       <Card size="sm">
+        <CardHeader>
+          <CardTitle>Email details</CardTitle>
+        </CardHeader>
         <CardContent>
           <FieldGroup className="gap-3">
             <Field>

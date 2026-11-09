@@ -2,7 +2,7 @@ import Link from "next/link"
 import { ListFilterIcon } from "lucide-react"
 
 import { PageHeader } from "@/components/page-header"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
@@ -64,6 +64,9 @@ export default async function SegmentsPage() {
         </Empty>
       ) : (
         <Card>
+          <CardHeader>
+            <CardTitle>All segments</CardTitle>
+          </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>

@@ -299,7 +299,7 @@ export function PlanEditor({
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="icon-sm" aria-label="Back to pipeline" render={<Link href="/pipeline" />} nativeButton={false}>
           <ArrowLeftIcon />
         </Button>
@@ -312,6 +312,9 @@ export function PlanEditor({
             planTitle(plan)
           )}
         </h1>
+        <div className="order-last w-full empty:hidden sm:order-none sm:w-auto">
+          <NextMoveButtons name={lead ? personName(lead) : planTitle(plan)} plan={plan} trips={trips} today={today} />
+        </div>
         <ManageMenu label="Manage this trip plan" actions={planActions(plan, null, "/pipeline")} />
       </div>
 
@@ -324,8 +327,10 @@ export function PlanEditor({
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <div className="flex flex-col gap-4">
           <Card>
+            <CardHeader>
+              <CardTitle>Details</CardTitle>
+            </CardHeader>
             <CardContent className="flex flex-col gap-2">
-              <NextMoveButtons name={lead ? personName(lead) : planTitle(plan)} plan={plan} trips={trips} today={today} />
               <Row label="Stage">
                 <StageSelect plan={plan} />
               </Row>
@@ -387,6 +392,9 @@ export function PlanEditor({
           <PaymentsCard plan={plan} today={today} />
         </div>
         <Card>
+          <CardHeader>
+            <CardTitle>Notes and history</CardTitle>
+          </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <NoteComposer planId={plan.id} />
             <ActivityTimeline entries={timeline} />

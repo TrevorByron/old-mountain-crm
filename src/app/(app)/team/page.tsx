@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
 
@@ -25,6 +25,9 @@ export default async function TeamPage() {
         <InviteDialog />
       </PageHeader>
       <Card>
+        <CardHeader>
+          <CardTitle>Members</CardTitle>
+        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>

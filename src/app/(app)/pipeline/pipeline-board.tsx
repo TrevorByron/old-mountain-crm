@@ -21,7 +21,7 @@ import { toast } from "sonner"
 
 import { SimpleSelect, type SimpleOption } from "@/components/simple-select"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Label } from "@/components/ui/label"
@@ -58,9 +58,11 @@ function PlanCard({ plan, today }: { plan: PlanRow; today: string }) {
       <Card size="sm" className={overdue ? "ring-2 ring-destructive" : undefined}>
         <CardContent className="flex flex-col gap-1.5">
           <div className="flex items-start justify-between gap-1">
-            <Link href={`/pipeline/${plan.id}`} className="font-medium underline-offset-4 hover:underline">
-              {planTitle(plan)}
-            </Link>
+            <CardTitle className="min-w-0">
+              <Link href={`/pipeline/${plan.id}`} className="underline-offset-4 hover:underline">
+                {planTitle(plan)}
+              </Link>
+            </CardTitle>
             <ManageMenu label={`Manage ${planTitle(plan)}`} actions={planActions(plan, null)} className="-mt-1 -mr-1" />
           </div>
           <p className="text-xs text-muted-foreground">
