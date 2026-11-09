@@ -138,6 +138,38 @@ export async function createPlan(input: unknown) {
   return { ok: true as const, id: plan.id as string }
 }
 
+const newPersonPlanSchema = z.object({
+  tripId: idSchema,
+  firstName: z.string().trim().min(1, "Add a first name.").max(100),
+  lastName: z.string().trim().max(100),
+  stage: z.enum(STAGE_KEYS).default("talking"),
+})
+
+// Someone who isn't on the list yet. They aren't kept if the plan can't be started.
+export async function createPlanForNewPerson(input: unknown) {
+  const parsed = newPersonPlanSchema.safeParse(input)
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0].message }
+
+  const { supabase, member } = await requireTeamMember()
+  const { tripId, firstName, lastName, stage } = parsed.data
+  const { data: person, error } = await supabase
+    .from("subscribers")
+    .insert({
+      first_name: firstName,
+      last_name: lastName || null,
+      source: "Added to a trip plan",
+      marketing_ok: false,
+      last_changed_by: member.email,
+    })
+    .select("id")
+    .single()
+  if (error) return { ok: false as const, error: "Couldn't add them." }
+
+  const created = await createPlan({ subscriberId: person.id, tripId, stage })
+  if (!created.ok) await supabase.from("subscribers").delete().eq("id", person.id)
+  return created
+}
+
 const updateSchema = z.object({
   id: idSchema,
   stage: z.enum(STAGE_KEYS).optional(),

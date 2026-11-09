@@ -76,27 +76,27 @@ export function TripName({ trip }: { trip: Pick<TripFields, "id" | "name"> }) {
 export function TripDetails({ trip }: { trip: TripFields }) {
   const save = (fields: Record<string, unknown>) => updateTrip({ id: trip.id, ...fields })
   return (
-    <div className="grid gap-x-6 gap-y-1 md:grid-cols-2">
+    <div className="grid gap-x-6 gap-y-1 md:grid-cols-2 xl:grid-cols-1">
       <Row label="Kind">
         <InlineSelect label="Kind" value={trip.kind} items={KINDS} onSave={(kind) => save({ kind })} />
-      </Row>
-      <Row label="Seats">
-        <InlineText label="Seats" value={trip.seats === null ? null : String(trip.seats)} placeholder="Add seats" onSave={seatsOnSave(trip.id)} />
-      </Row>
-      <Row label="Starts">
-        <InlineText label="Starts" type="date" value={trip.starts_on} onSave={(starts_on) => save({ starts_on })} />
-      </Row>
-      <Row label="Ends">
-        <InlineText label="Ends" type="date" value={trip.ends_on} onSave={(ends_on) => save({ ends_on })} />
       </Row>
       <Row label="Price each">
         <InlineMoney label="Price per person" value={trip.price_per_person} onSave={(price_per_person) => save({ price_per_person })} />
       </Row>
+      <Row label="Starts">
+        <InlineText label="Starts" type="date" className="w-fit" value={trip.starts_on} onSave={(starts_on) => save({ starts_on })} />
+      </Row>
       <Row label="Deposit each">
         <InlineMoney label="Deposit per person" value={trip.deposit_per_person} onSave={(deposit_per_person) => save({ deposit_per_person })} />
       </Row>
+      <Row label="Ends">
+        <InlineText label="Ends" type="date" className="w-fit" value={trip.ends_on} onSave={(ends_on) => save({ ends_on })} />
+      </Row>
       <Row label="Balance due">
-        <InlineText label="Balance due" type="date" value={trip.balance_due_on} onSave={(balance_due_on) => save({ balance_due_on })} />
+        <InlineText label="Balance due" type="date" className="w-fit" value={trip.balance_due_on} onSave={(balance_due_on) => save({ balance_due_on })} />
+      </Row>
+      <Row label="Seats">
+        <InlineText label="Seats" value={trip.seats === null ? null : String(trip.seats)} placeholder="Add seats" onSave={seatsOnSave(trip.id)} />
       </Row>
       <Row label="Notes">
         <InlineText label="Notes" multiline rows={1} value={trip.notes} placeholder="Add notes" onSave={(notes) => save({ notes })} />

@@ -25,9 +25,9 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { formatDate, type PlanRow } from "@/lib/pipeline/display"
-import { STAGES, formatMoney, isOpenStage, nextMove, parseMoney, stageLabel, summarizePayments } from "@/lib/pipeline/stages"
+import { PAYMENT_KINDS, PAYMENT_STATUS_LABELS, STAGES, formatMoney, isOpenStage, nextMove, parseMoney, stageLabel, summarizePayments } from "@/lib/pipeline/stages"
 
-import { deletePlan, recordDeposit, removeFromTrip, resetPlan, updatePlan } from "./actions"
+import { addPayment, deletePlan, recordDeposit, removeFromTrip, resetPlan, updatePlan } from "./actions"
 import { NewPlanDialog } from "./new-plan-dialog"
 
 const NO_TRIP = "__none__"
@@ -169,12 +169,12 @@ function DepositForm({ personId = null, owner = null, name, plan, trips, today, 
   )
 }
 
-export function DepositDialog({ variant = "default", ...props }: DepositProps & { variant?: "default" | "outline" }) {
+export function DepositDialog({ variant = "default", size = "default", ...props }: DepositProps & { variant?: "default" | "outline"; size?: "default" | "sm" }) {
   const [open, setOpen] = useState(false)
   const tripName = props.plan?.trips?.name
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant={variant} />}>Record a deposit</DialogTrigger>
+      <DialogTrigger render={<Button variant={variant} size={size} />}>Record a deposit</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Record a deposit</DialogTitle>
@@ -188,11 +188,13 @@ export function DepositDialog({ variant = "default", ...props }: DepositProps & 
   )
 }
 
-export function NextMoveButtons({ plan, ...props }: Omit<DepositProps, "plan"> & { plan: PlanRow }) {
+// Compact is for a row in a list: only the one usual move, since the row can already record money.
+export function NextMoveButtons({ plan, compact, ...props }: Omit<DepositProps, "plan"> & { plan: PlanRow; compact?: boolean }) {
   const [isPending, startTransition] = useTransition()
   const paid = summarizePayments(plan, plan.payments, props.today).paid
   const move = nextMove(plan.stage, paid)
   if (!move) return null
+  const size = compact ? "sm" : "default"
 
   const advance = (stage: string) =>
     startTransition(async () => {
@@ -204,15 +206,121 @@ export function NextMoveButtons({ plan, ...props }: Omit<DepositProps, "plan"> &
   return (
     <div className="flex flex-wrap gap-2">
       {move.kind === "stage" ? (
-        <Button disabled={isPending} onClick={() => advance(move.stage)}>
+        <Button size={size} disabled={isPending} onClick={() => advance(move.stage)}>
           {isPending && <Spinner data-icon="inline-start" />}
           {move.label}
         </Button>
       ) : (
-        <DepositDialog {...props} plan={plan} />
+        <DepositDialog {...props} plan={plan} size={size} />
       )}
-      {move.kind === "stage" && paid <= 0 && <DepositDialog {...props} plan={plan} variant="outline" />}
+      {!compact && move.kind === "stage" && paid <= 0 && <DepositDialog {...props} plan={plan} variant="outline" />}
     </div>
+  )
+}
+
+export function NextStepField({ plan }: { plan: Pick<PlanRow, "id" | "next_step"> }) {
+  return (
+    <InlineText
+      label="Next step"
+      value={plan.next_step}
+      placeholder="Add the next step"
+      className="-mx-1 text-xs text-muted-foreground"
+      onSave={(next_step) => updatePlan({ id: plan.id, next_step })}
+    />
+  )
+}
+
+const PAYMENT_KIND_ITEMS = PAYMENT_KINDS.map((item) => ({ value: item.key, label: item.label }))
+
+// Rendered inside the dialog, so it starts fresh each time it opens.
+function PaymentForm({ plan, today, onDone }: { plan: PlanRow; today: string; onDone: () => void }) {
+  const summary = summarizePayments(plan, plan.payments, today)
+  const suggested = (value: string) => {
+    if (value === "deposit") return moneyText(plan.deposit_amount)
+    if (value === "balance" && summary.balance !== null && summary.balance > 0) return moneyText(summary.balance)
+    return ""
+  }
+  const firstKind = summary.paid > 0 ? "balance" : "deposit"
+  const [kind, setKind] = useState<string>(firstKind)
+  const [amount, setAmount] = useState(suggested(firstKind))
+  const [paidOn, setPaidOn] = useState(today)
+  const [isPending, startTransition] = useTransition()
+
+  function submit() {
+    const parsed = parseMoney(amount)
+    if (parsed === null || Number.isNaN(parsed)) {
+      toast.error("Enter an amount, like 3000.")
+      return
+    }
+    startTransition(async () => {
+      const result = await addPayment({ planId: plan.id, kind, amount: parsed, paid_on: paidOn, method: null, note: null })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(result.moved ? "Payment recorded. They're now Committed." : "Payment recorded.")
+      onDone()
+    })
+  }
+
+  return (
+    <>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="payment-kind">Type</FieldLabel>
+          <SimpleSelect
+            id="payment-kind"
+            items={PAYMENT_KIND_ITEMS}
+            value={kind}
+            onChange={(value) => {
+              setKind(value)
+              setAmount(suggested(value))
+            }}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field>
+            <FieldLabel htmlFor="payment-amount">Amount ($)</FieldLabel>
+            <Input id="payment-amount" inputMode="decimal" placeholder="3000" value={amount} onChange={(event) => setAmount(event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="payment-date">Received</FieldLabel>
+            <Input id="payment-date" type="date" value={paidOn} onChange={(event) => setPaidOn(event.target.value)} />
+          </Field>
+        </div>
+      </FieldGroup>
+      <DialogFooter>
+        <Button onClick={submit} disabled={isPending || !amount.trim() || !paidOn}>
+          {isPending && <Spinner data-icon="inline-start" />}
+          Record payment
+        </Button>
+      </DialogFooter>
+    </>
+  )
+}
+
+// A row's payment status is also how you add to it.
+export function PaymentDialog({ plan, name, today }: { plan: PlanRow; name: string; today: string }) {
+  const [open, setOpen] = useState(false)
+  const summary = summarizePayments(plan, plan.payments, today)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" className="-ml-2 h-auto flex-col items-start gap-0.5 py-1" aria-label={`Record a payment from ${name}`} />}>
+        <Badge variant={summary.overdue ? "destructive" : "outline"}>
+          {summary.overdue ? `${summary.overdue === "deposit" ? "Deposit" : "Balance"} overdue` : PAYMENT_STATUS_LABELS[summary.status]}
+        </Badge>
+        {summary.balance !== null && <span className="font-normal text-muted-foreground tabular-nums">{formatMoney(summary.balance)} left</span>}
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Record a payment</DialogTitle>
+          <DialogDescription>
+            From {name}. {formatMoney(summary.paid)} paid so far{summary.balance === null ? "." : `, ${formatMoney(summary.balance)} left.`}
+          </DialogDescription>
+        </DialogHeader>
+        <PaymentForm plan={plan} today={today} onDone={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
   )
 }
 
