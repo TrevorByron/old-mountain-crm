@@ -3,7 +3,6 @@ import Link from "next/link"
 
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
@@ -67,57 +66,50 @@ export default async function TripsPage() {
           </EmptyContent>
         </Empty>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>All trips</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Trip</TableHead>
-                  <TableHead className="hidden md:table-cell">Dates</TableHead>
-                  <TableHead className="hidden sm:table-cell">Seats taken</TableHead>
-                  <TableHead className="hidden sm:table-cell">In talks</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">Collected</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {trips.map((trip) => (
-                  <TableRow key={trip.id} className="relative">
-                    <TableCell className="whitespace-normal">
-                      <Link href={`/trips/${trip.id}`} className="font-medium after:absolute after:inset-0">
-                        {trip.name}
-                      </Link>{" "}
-                      {trip.kind === "custom" && <Badge variant="outline">Custom</Badge>}{" "}
-                      {trip.archived && <Badge variant="outline">Archived</Badge>}
-                      {/* Phones show the numbers as one line here instead of in their own columns. */}
-                      <p className="text-sm text-muted-foreground tabular-nums sm:hidden">
-                        {trip.taken}
-                        {trip.seats ? ` of ${trip.seats}` : ""} seats · {formatMoney(trip.collected)} collected
-                      </p>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <TripRowDates trip={trip} />
-                    </TableCell>
-                    <TableCell className="hidden tabular-nums sm:table-cell">
-                      <div className="flex items-center gap-1">
-                        {trip.taken} of
-                        <TripRowSeats trip={trip} />
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden tabular-nums sm:table-cell">{trip.talking}</TableCell>
-                    <TableCell className="hidden text-right tabular-nums sm:table-cell">{formatMoney(trip.collected)}</TableCell>
-                    <TableCell className="w-10 text-right">
-                      <TripMenu trip={trip} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Trip</TableHead>
+              <TableHead className="hidden md:table-cell">Dates</TableHead>
+              <TableHead className="hidden sm:table-cell">Seats taken</TableHead>
+              <TableHead className="hidden sm:table-cell">In talks</TableHead>
+              <TableHead className="hidden text-right sm:table-cell">Collected</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {trips.map((trip) => (
+              <TableRow key={trip.id} className="relative">
+                <TableCell className="whitespace-normal">
+                  <Link href={`/trips/${trip.id}`} className="font-medium after:absolute after:inset-0">
+                    {trip.name}
+                  </Link>{" "}
+                  {trip.kind === "custom" && <Badge variant="outline">Custom</Badge>}{" "}
+                  {trip.archived && <Badge variant="outline">Archived</Badge>}
+                  {/* Phones show the numbers as one line here instead of in their own columns. */}
+                  <p className="text-sm text-muted-foreground tabular-nums sm:hidden">
+                    {trip.taken}
+                    {trip.seats ? ` of ${trip.seats}` : ""} seats · {formatMoney(trip.collected)} collected
+                  </p>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <TripRowDates trip={trip} />
+                </TableCell>
+                <TableCell className="hidden tabular-nums sm:table-cell">
+                  <div className="flex items-center gap-1">
+                    {trip.taken} of
+                    <TripRowSeats trip={trip} />
+                  </div>
+                </TableCell>
+                <TableCell className="hidden tabular-nums sm:table-cell">{trip.talking}</TableCell>
+                <TableCell className="hidden text-right tabular-nums sm:table-cell">{formatMoney(trip.collected)}</TableCell>
+                <TableCell className="w-10 text-right">
+                  <TripMenu trip={trip} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </>
   )

@@ -50,7 +50,8 @@ export const sendBroadcast = inngest.createFunction(
 export const scheduledAirtableSync = inngest.createFunction(
   {
     id: "scheduled-airtable-sync",
-    triggers: [{ cron: "*/15 * * * *" }],
+    // Once a day, early morning in Florida. "Sync now" on the sync page covers anything sooner.
+    triggers: [{ cron: "TZ=America/New_York 0 6 * * *" }],
     concurrency: { limit: 1 },
   },
   async ({ step }) => step.run("sync-airtable", () => runSync("schedule"))

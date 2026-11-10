@@ -21,7 +21,7 @@ export default async function SyncPage() {
     <>
       <PageHeader
         title="Airtable sync"
-        description="Airtable owns contact details. Syncs run every 15 minutes once the first import is committed."
+        description="Airtable owns contact details. A sync runs every morning at 6am Eastern once the first import is committed."
       />
       <SyncPanel runs={runs} />
     </>

@@ -160,4 +160,4 @@ An email is a list of blocks: text, photo, photo beside text, button, logo, divi
 
 ## Scheduled sync
 
-Inngest runs the Airtable sync every 15 minutes through `/api/inngest`. Set `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` in production. Locally, run `npx inngest-cli@latest dev` to trigger it.
+Inngest runs the Airtable sync once a day, at 6am Eastern, through `/api/inngest`. Set `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` in production. Locally, run `npx inngest-cli@latest dev` to trigger it.
