@@ -55,10 +55,10 @@ export function GlobalSearch() {
 
   return (
     <>
-      <Button variant="outline" size="sm" className="w-full max-w-xs justify-start text-muted-foreground" onClick={() => setOpen(true)}>
+      <Button variant="outline" className="w-full min-w-0 max-w-xs shrink justify-start text-muted-foreground" onClick={() => setOpen(true)}>
         <SearchIcon data-icon="inline-start" />
         Find a person
-        <CommandShortcut>⌘K</CommandShortcut>
+        <CommandShortcut className="hidden md:inline">⌘K</CommandShortcut>
       </Button>
       <CommandDialog open={open} onOpenChange={setOpen} title="Find a person" description="Search by name, email, phone or tag.">
         <Command shouldFilter={false}>

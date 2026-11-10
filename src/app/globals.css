@@ -126,4 +126,11 @@
   html {
     @apply font-sans;
   }
+  /* Phones get everything 25% bigger, so the standard 2rem controls are 40px tall and easy to tap.
+     Media queries stay in px, so the breakpoints don't move with it. */
+  @media (max-width: 767px) {
+    html {
+      font-size: 125%;
+    }
+  }
 }
