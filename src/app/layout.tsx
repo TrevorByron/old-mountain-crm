@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans } from "next/font/google";
+import { Figtree } from "next/font/google";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import "./globals.css";
 
-// A clean geometric sans in the spirit of Flodesk's. Emails keep Roboto (see theme/tokens.ts).
-const font = DM_Sans({
+// A clean geometric sans in the spirit of Flodesk's, kept apart from the Old Mountain brand fonts,
+// which only emails use (see theme/tokens.ts).
+const font = Figtree({
   variable: "--font-app",
   weight: ["400", "500", "700"],
   subsets: ["latin"],

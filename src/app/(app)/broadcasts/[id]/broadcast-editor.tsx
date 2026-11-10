@@ -933,13 +933,15 @@ export function BroadcastEditor({
           </TabsContent>
         </Tabs>
       ) : (
-        <div className="h-[calc(100svh-10rem)] min-h-[32rem]">
+        // The form scrolls on its own, which clips anything past its edge, so it gets room on every
+        // side for the cards' shadows. The negative margin keeps the cards lined up with the page.
+        <div className="-mx-5 -mt-2 h-[calc(100svh-10rem)] min-h-[32rem]">
           <ResizablePanelGroup orientation="horizontal">
-            <ResizablePanel defaultSize="50%" minSize="35%" className="overflow-y-auto p-1 pr-3">
+            <ResizablePanel defaultSize="50%" minSize="35%" className="overflow-y-auto px-5 pt-2 pb-8">
               {form}
             </ResizablePanel>
             <ResizableHandle withHandle />
-            <ResizablePanel defaultSize="50%" minSize="30%">
+            <ResizablePanel defaultSize="50%" minSize="30%" className="pt-2 pr-5 pl-3">
               {previewPane}
             </ResizablePanel>
           </ResizablePanelGroup>

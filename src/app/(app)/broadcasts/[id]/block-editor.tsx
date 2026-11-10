@@ -452,7 +452,7 @@ function SortableBlock({
           )}
           <Button
             variant="ghost"
-            className="h-auto min-w-0 flex-1 justify-start gap-2 py-1.5 text-left"
+            className="h-auto min-w-0 flex-1 justify-start gap-2 rounded-lg py-1.5 text-left"
             aria-expanded={selected}
             onClick={onSelect}
           >

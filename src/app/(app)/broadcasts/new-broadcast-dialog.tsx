@@ -60,7 +60,7 @@ export function NewBroadcastDialog({
   const option = (id: string, name: string, description: string) => (
     <Button
       variant="outline"
-      className="h-auto flex-1 flex-col items-start gap-0.5 py-3 text-left whitespace-normal"
+      className="h-auto flex-1 flex-col items-start gap-0.5 rounded-lg py-3 text-left whitespace-normal"
       disabled={isPending}
       onClick={() => create(id)}
     >

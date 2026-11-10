@@ -141,7 +141,7 @@ function LibraryDialog({ onClose, onChoose }: { onClose: () => void; onChoose: (
             <Button
               key={photo.path}
               variant="outline"
-              className="h-auto flex-col items-start gap-1 p-1 whitespace-normal"
+              className="h-auto flex-col items-start gap-1 rounded-lg p-1 whitespace-normal"
               onClick={() => {
                 onChoose(photo)
                 onClose()

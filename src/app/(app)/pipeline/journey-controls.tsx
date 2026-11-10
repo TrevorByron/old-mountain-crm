@@ -305,7 +305,7 @@ export function PaymentDialog({ plan, name, today }: { plan: PlanRow; name: stri
   const summary = summarizePayments(plan, plan.payments, today)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="ghost" size="sm" className="-ml-2 h-auto flex-col items-start gap-0.5 py-1" aria-label={`Record a payment from ${name}`} />}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" className="-ml-2 h-auto flex-col items-start gap-0.5 rounded-lg py-1" aria-label={`Record a payment from ${name}`} />}>
         <Badge variant={summary.overdue ? "destructive" : "outline"}>
           {summary.overdue ? `${summary.overdue === "deposit" ? "Deposit" : "Balance"} overdue` : PAYMENT_STATUS_LABELS[summary.status]}
         </Badge>
