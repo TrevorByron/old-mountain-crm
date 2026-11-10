@@ -268,7 +268,6 @@ export function BroadcastEditor({
   totalCount,
   testBlockers,
   sendBlockers,
-  results,
 }: {
   broadcast: Broadcast
   statuses: string[]
@@ -278,8 +277,6 @@ export function BroadcastEditor({
   totalCount: number
   testBlockers: string[]
   sendBlockers: string[]
-  // Shown under the header once the campaign has gone out.
-  results?: React.ReactNode
 }) {
   const router = useRouter()
   const isMobile = useIsMobile()
@@ -922,7 +919,6 @@ export function BroadcastEditor({
           />
         </div>
       </div>
-      {results}
       {isMobile ? (
         <Tabs value={mobileView} onValueChange={setMobileView}>
           <TabsList>

@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { brand, fontFamily, light } from "@/theme/tokens"
+import { brand, fontFamily } from "@/theme/tokens"
 
 // The brand limits of the builder. Anything outside these lists is dropped when an email
 // renders, so a draft can't drift off brand and pasted formatting can't reach an inbox.
@@ -10,7 +10,8 @@ export const COLORS = {
   olive: { label: "Olive", value: brand.olive },
   dark: { label: "Near black", value: brand.dark },
   cream: { label: "Cream", value: brand.cream },
-  paper: { label: "Paper", value: light.card },
+  // The email paper stays the brand cream even though the app's cards are now white.
+  paper: { label: "Paper", value: "#fdfaf4" },
   white: { label: "White", value: "#ffffff" },
 } as const
 

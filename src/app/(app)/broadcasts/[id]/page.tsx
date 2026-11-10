@@ -3,12 +3,12 @@ import { z } from "zod"
 
 import { requireTeamMember } from "@/lib/auth"
 import { emailContentSchema } from "@/lib/broadcasts/blocks"
-import { sendBlockers } from "@/lib/broadcasts/compose"
+import { previewHtml, sendBlockers } from "@/lib/broadcasts/compose"
 import { audienceFilterSchema, starterContent } from "@/lib/broadcasts/content"
 import type { ResultSend } from "@/lib/broadcasts/results"
 
 import { BroadcastEditor } from "./broadcast-editor"
-import { CampaignResults } from "./campaign-results"
+import { EmailReport } from "./email-report"
 
 export const metadata = { title: "Email" }
 
@@ -75,6 +75,19 @@ export default async function BroadcastPage({ params }: PageProps<"/broadcasts/[
     ? emailContentSchema.parse(broadcast.content)
     : starterContent(template?.layout_key ?? "letter")
 
+  // Once it has gone out it's a record, not a draft: a report on what happened and what was sent.
+  if (["sending", "sent", "failed"].includes(broadcast.state)) {
+    return (
+      <EmailReport
+        key={id}
+        email={broadcast}
+        sends={results}
+        totalCount={total.count ?? 0}
+        html={await previewHtml(content, broadcast.preheader, process.env, { editing: false })}
+      />
+    )
+  }
+
   return (
     <BroadcastEditor
       key={id}
@@ -86,7 +99,6 @@ export default async function BroadcastPage({ params }: PageProps<"/broadcasts/[
       totalCount={total.count ?? 0}
       testBlockers={sendBlockers(process.env, { realRecipients: false })}
       sendBlockers={sendBlockers(process.env, { realRecipients: true })}
-      results={results.some((send) => send.sent_at) ? <CampaignResults sends={results} /> : undefined}
     />
   )
 }

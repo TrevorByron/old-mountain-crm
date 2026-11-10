@@ -21,11 +21,11 @@ export const brand = {
 export const radius = "0.5rem"
 
 export const light = {
-  background: "#f8f4ec",
+  background: "#fcfbf8",
   foreground: "#1a1a14",
-  card: "#fdfaf4",
+  card: "#ffffff",
   "card-foreground": "#1a1a14",
-  popover: "#fdfaf4",
+  popover: "#ffffff",
   "popover-foreground": "#1a1a14",
   primary: "#2c3a22",
   "primary-foreground": "#f0e6d3",
