@@ -1,16 +1,17 @@
-import { ArrowLeftIcon, MailIcon, PhoneIcon } from "lucide-react"
+import { ChevronLeftIcon } from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { z } from "zod"
 
 import { ActivityTimeline, NoteComposer } from "@/components/activity-timeline"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { requireTeamMember } from "@/lib/auth"
 import { sendTimelineEntries } from "@/lib/broadcasts/results"
+import { summarizeEngagement, type EngagementEvent, type EngagementSend } from "@/lib/people/engagement"
 import { companions, followUpState, lastContactLabel, tripInterestSummary } from "@/lib/people/profile"
 import {
   PLAN_COLUMNS,
@@ -26,9 +27,13 @@ import {
 import { lifecycleLabel } from "@/lib/pipeline/stages"
 
 import { TripsCard } from "../../pipeline/journey-controls"
-import { PersonHeader, ProfileCard } from "./person-panels"
+import { PersonAnalytics } from "./person-analytics"
+import { ContactButtons, PersonHeader, PersonMenu, ProfileCards } from "./person-panels"
 
 export const metadata = { title: "Person" }
+
+// Which browser or phone opened or clicked, read from the Resend event, for the Analytics tab.
+type SendWithAgents = Omit<EngagementSend, "email_events"> & { email_events: (EngagementEvent & { open_agent: string | null; click_agent: string | null })[] }
 
 const NOTE_KINDS = ["note", "call", "email", "meeting"]
 
@@ -48,8 +53,9 @@ function BadgeRow({ label, items }: { label: string; items: string[] }) {
   )
 }
 
-export default async function PersonPage({ params }: PageProps<"/subscribers/[id]">) {
+export default async function PersonPage({ params, searchParams }: PageProps<"/subscribers/[id]">) {
   const { id } = await params
+  const { tab } = await searchParams
   if (!z.uuid().safeParse(id).success) notFound()
 
   const { supabase } = await requireTeamMember()
@@ -82,7 +88,7 @@ export default async function PersonPage({ params }: PageProps<"/subscribers/[id
       supabase.from("activities").select("id, kind, body, meta, author, occurred_at").eq("subscriber_id", id),
       supabase.from("activities").select("id, kind, body, meta, author, occurred_at, trip_plan_id").in("trip_plan_id", planIds),
       supabase.from("subscriber_status_history").select("id, from_status, to_status, changed_by, changed_at").eq("subscriber_id", id),
-      supabase.from("sends").select("id, subject, sent_at, broadcast_id, email_events (id, type, link_url, occurred_at, is_probable_bot)").eq("subscriber_id", id).not("sent_at", "is", null),
+      supabase.from("sends").select("id, subject, sent_at, broadcast_id, email_events (id, type, link_url, occurred_at, is_probable_bot, open_agent:raw->data->open->>userAgent, click_agent:raw->data->click->>userAgent)").eq("subscriber_id", id).not("sent_at", "is", null),
     ])
   for (const result of [lifecycle, lastTouch, planResult, trips, statuses, savedSegments, ownNotes, planActivity, statusHistory, sends]) {
     if (result.error) throw new Error(result.error.message)
@@ -134,47 +140,53 @@ export default async function PersonPage({ params }: PageProps<"/subscribers/[id
   const hasSignupAnswers = Boolean(tripSummary) || person.interests.length > 0 || person.objections.length > 0 || Boolean(person.interests_other) || Boolean(person.objections_other)
   const savedSegmentNames = ((savedSegments.data ?? []) as unknown as { name: string }[]).map((segment) => segment.name)
 
+  const engagement = summarizeEngagement(
+    ((sends.data ?? []) as unknown as SendWithAgents[]).map((row) => ({
+      ...row,
+      email_events: row.email_events.map((event) => ({ ...event, user_agent: event.open_agent ?? event.click_agent })),
+    }))
+  )
+  const lifecycleName = lifecycleLabel(lifecycle.data?.lifecycle ?? "subscriber")
+
   return (
     <>
-      <div className="flex items-start gap-2">
-        <Button variant="ghost" size="icon-sm" aria-label="Back to people" render={<Link href="/subscribers" />} nativeButton={false}>
-          <ArrowLeftIcon />
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" className="-ml-3" render={<Link href="/subscribers" />} nativeButton={false}>
+          <ChevronLeftIcon data-icon="inline-start" />
+          Audience
         </Button>
-        <PersonHeader person={person} />
+        <PersonMenu person={person} />
       </div>
-      <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <Badge>{lifecycleLabel(lifecycle.data?.lifecycle ?? "subscriber")}</Badge>
-        Last contact: {lastContactLabel(lastTouch.data?.last_touch ?? null, today)}
-        {" · "}On your list since {formatDate(person.subscribed_at)}
-      </p>
 
-      {/* Phones get big tap targets to reach them, like a contact card. */}
-      {(person.email || person.phone) && (
-        <div className="grid auto-cols-fr grid-flow-col gap-2 md:hidden">
-          {person.email && (
-            <Button variant="outline" render={<a href={`mailto:${person.email}`} />} nativeButton={false}>
-              <MailIcon data-icon="inline-start" />
-              Email
-            </Button>
+      {/* A centered heading like Flodesk's person view, then their relationship and their email analytics as two tabs. */}
+      <div className="flex flex-col items-center gap-3">
+        <PersonHeader person={person} />
+        <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-muted-foreground">
+          <Badge variant="secondary">{lifecycleName}</Badge>
+          Last contact: {lastContactLabel(lastTouch.data?.last_touch ?? null, today)}
+          {" · "}On your list since {formatDate(person.subscribed_at)}
+        </p>
+        <ContactButtons email={person.email} phone={person.phone} />
+      </div>
+
+      <Tabs defaultValue={tab === "analytics" ? "analytics" : "relationship"} className="items-center gap-8">
+        <TabsList>
+          <TabsTrigger value="relationship" className="flex-none">
+            Relationship
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex-none">
+            Analytics
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="relationship" className="flex w-full max-w-2xl flex-col gap-6">
+          {followUp !== "none" && followUp !== "upcoming" && (
+            <Alert>
+              <AlertTitle>{followUp === "overdue" ? `Follow-up was due ${formatDate(person.follow_up_on)}` : "Follow up today"}</AlertTitle>
+              {person.follow_up_note && <AlertDescription>{person.follow_up_note}</AlertDescription>}
+            </Alert>
           )}
-          {person.phone && (
-            <Button variant="outline" render={<a href={`tel:${person.phone}`} />} nativeButton={false}>
-              <PhoneIcon data-icon="inline-start" />
-              Call
-            </Button>
-          )}
-        </div>
-      )}
 
-      {followUp !== "none" && followUp !== "upcoming" && (
-        <Alert>
-          <AlertTitle>{followUp === "overdue" ? `Follow-up was due ${formatDate(person.follow_up_on)}` : "Follow up today"}</AlertTitle>
-          {person.follow_up_note && <AlertDescription>{person.follow_up_note}</AlertDescription>}
-        </Alert>
-      )}
-
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-4">
           <TripsCard
             personId={id}
             name={personName(person)}
@@ -189,7 +201,7 @@ export default async function PersonPage({ params }: PageProps<"/subscribers/[id
             today={today}
           />
           {travelMates.length > 0 && (
-            <p className="px-1 text-sm">
+            <p className="-mt-2 px-1 text-sm">
               <span className="text-muted-foreground">Travels with: </span>
               {travelMates.map((mate, index) => (
                 <span key={mate.id}>
@@ -201,35 +213,41 @@ export default async function PersonPage({ params }: PageProps<"/subscribers/[id
               ))}
             </p>
           )}
-          <ProfileCard person={person} statuses={(statuses.data ?? []).map((status) => status.value as string)} />
-          {(hasSignupAnswers || savedSegmentNames.length > 0 || person.segments.length > 0) && (
-            <Accordion>
-              <AccordionItem value="signup">
-                <AccordionTrigger>From their signup and segments</AccordionTrigger>
-                <AccordionContent className="flex flex-col gap-3">
-                  {tripSummary && <p className="text-sm">{tripSummary}</p>}
-                  <BadgeRow label="What excites them" items={person.interests} />
-                  {person.interests_other && <p className="text-sm whitespace-pre-wrap">&ldquo;{person.interests_other}&rdquo;</p>}
-                  <BadgeRow label="What's holding them back" items={person.objections} />
-                  {person.objections_other && <p className="text-sm whitespace-pre-wrap">&ldquo;{person.objections_other}&rdquo;</p>}
-                  <BadgeRow label="Saved segments" items={savedSegmentNames} />
-                  <BadgeRow label="Airtable segments" items={person.segments} />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          )}
-        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Notes and history</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <NoteComposer subscriberId={id} />
-            <ActivityTimeline entries={timeline} />
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Notes and history</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <NoteComposer subscriberId={id} />
+              <ActivityTimeline entries={timeline} />
+            </CardContent>
+          </Card>
+
+          <ProfileCards person={person} statuses={(statuses.data ?? []).map((status) => status.value as string)} />
+
+          {(hasSignupAnswers || savedSegmentNames.length > 0 || person.segments.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Segments and signup</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {tripSummary && <p className="text-sm">{tripSummary}</p>}
+                <BadgeRow label="Saved segments" items={savedSegmentNames} />
+                <BadgeRow label="Airtable segments" items={person.segments} />
+                <BadgeRow label="What excites them" items={person.interests} />
+                {person.interests_other && <p className="text-sm whitespace-pre-wrap">&ldquo;{person.interests_other}&rdquo;</p>}
+                <BadgeRow label="What's holding them back" items={person.objections} />
+                {person.objections_other && <p className="text-sm whitespace-pre-wrap">&ldquo;{person.objections_other}&rdquo;</p>}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="analytics" className="w-full max-w-2xl">
+          <PersonAnalytics engagement={engagement} />
+        </TabsContent>
+      </Tabs>
     </>
   )
 }

@@ -15,7 +15,7 @@ export default async function SubscribersPage({ searchParams }: PageProps<"/subs
   const customersOnly = show === "customers"
   const { supabase } = await requireTeamMember()
 
-  const { people: everyone } = await loadPeople(supabase)
+  const { people: everyone, segments } = await loadPeople(supabase)
   const people = customersOnly ? everyone.filter((person) => CUSTOMER_LIFECYCLES.includes(person.lifecycle)) : everyone
 
   return (
@@ -29,6 +29,7 @@ export default async function SubscribersPage({ searchParams }: PageProps<"/subs
         title={<AudienceTabs active={customersOnly ? "customers" : "subscribers"} />}
         actions={<AddPersonDialog />}
         fab={<AddPersonDialog fab />}
+        segments={segments}
       />
     </>
   )

@@ -4,14 +4,15 @@ import { ArrowLeftIcon, ChevronDownIcon } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
-import { Bar, BarChart, Cell, PolarAngleAxis, RadialBar, RadialBarChart, XAxis } from "recharts"
+import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts"
 import { toast } from "sonner"
 
+import { GlanceChart, RateRing } from "@/components/report-charts"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { RECIPIENT_STATUS_LABELS, rate, recipientStatus, summarizeResults, type RecipientStatus, type ResultSend } from "@/lib/broadcasts/results"
@@ -29,49 +30,6 @@ const STATUS_VARIANTS: Partial<Record<RecipientStatus, "success" | "secondary" |
   opened: "success",
 }
 const STATUS_ORDER: RecipientStatus[] = ["complained", "bounced", "unsubscribed", "clicked", "opened", "delivered", "sent"]
-
-const glanceConfig = { people: { label: "People", color: "var(--chart-1)" } } satisfies ChartConfig
-
-// The count over the stage name, so a stage with nobody yet still reads "0".
-function GlanceTick({ x, y, payload, data }: { x?: number; y?: number; payload?: { value: string }; data: { stage: string; people: number }[] }) {
-  const people = data.find((row) => row.stage === payload?.value)?.people ?? 0
-  return (
-    <g transform={`translate(${x ?? 0},${y ?? 0})`}>
-      <text textAnchor="middle" dy={14} className="fill-foreground font-medium tabular-nums" fontSize={14}>
-        {people}
-      </text>
-      <text textAnchor="middle" dy={32} className="fill-muted-foreground" fontSize={12}>
-        {payload?.value}
-      </text>
-    </g>
-  )
-}
-
-// One ring for a single rate. The number sits in the middle, so the ring only shows the share.
-function RateRing({ title, value, caption, color }: { title: string; value: number | null; caption: string; color: string }) {
-  const config = { value: { label: title, color } } satisfies ChartConfig
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center gap-2">
-        <div className="relative size-40">
-          <ChartContainer config={config} className="aspect-square size-40">
-            <RadialBarChart data={[{ value: value ?? 0 }]} innerRadius="80%" outerRadius="100%" startAngle={90} endAngle={-270}>
-              <PolarAngleAxis type="number" domain={[0, 100]} tick={false} axisLine={false} />
-              <RadialBar dataKey="value" fill="var(--color-value)" background={{ fill: "var(--muted)" }} cornerRadius={4} isAnimationActive={false} />
-            </RadialBarChart>
-          </ChartContainer>
-          <span className="absolute inset-0 flex items-center justify-center font-heading text-3xl font-medium tabular-nums">
-            {value === null ? "-" : `${value}%`}
-          </span>
-        </div>
-        <p className="text-center text-sm text-muted-foreground">{caption}</p>
-      </CardContent>
-    </Card>
-  )
-}
 
 function DeliveryGauge({ delivered, sent }: { delivered: number; sent: number }) {
   const value = sent === 0 ? 0 : Math.round((delivered / sent) * 100)
@@ -131,10 +89,10 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
   const clickRate = rate(summary.clicked, summary.delivered, summary.sent)
   // Each stage gets its own color, like Flodesk's report.
   const glance = [
-    { stage: "Sent", people: summary.sent, color: "var(--chart-1)" },
-    { stage: "Delivered", people: summary.delivered, color: "var(--chart-2)" },
-    { stage: "Opened", people: summary.opened, color: "var(--chart-3)" },
-    { stage: "Clicked", people: summary.clicked, color: "var(--chart-4)" },
+    { label: "Sent", value: summary.sent, color: "var(--chart-1)" },
+    { label: "Delivered", value: summary.delivered, color: "var(--chart-2)" },
+    { label: "Opened", value: summary.opened, color: "var(--chart-3)" },
+    { label: "Clicked", value: summary.clicked, color: "var(--chart-4)" },
   ]
   const recipients = sends
     .filter((send) => send.sent_at)
@@ -198,17 +156,7 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={glanceConfig} className="aspect-auto h-44 w-full sm:h-64">
-              <BarChart data={glance} margin={{ top: 8, left: 8, right: 8, bottom: 8 }} barCategoryGap="30%">
-                <XAxis dataKey="stage" tickLine={false} axisLine={false} height={44} interval={0} tick={<GlanceTick data={glance} />} />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel={false} />} />
-                <Bar dataKey="people" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                  {glance.map((entry) => (
-                    <Cell key={entry.stage} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ChartContainer>
+            <GlanceChart data={glance} />
           </CardContent>
         </Card>
 

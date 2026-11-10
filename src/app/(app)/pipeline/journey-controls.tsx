@@ -350,12 +350,11 @@ export function TripsCard({
     <Card>
       <CardHeader className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>Trips</CardTitle>
-        <div className="flex flex-wrap gap-2">
-          {!current && <DepositDialog personId={personId} owner={owner} name={name} plan={null} trips={startable} today={today} />}
-          <NewPlanDialog people={[]} trips={startable} personId={personId} defaultOwner={owner} label="Add to a trip" variant={current ? "ghost" : "outline"} />
-        </div>
+        {/* Add them to a trip first; recording their deposit comes after, from the trip below. */}
+        <NewPlanDialog people={[]} trips={startable} personId={personId} defaultOwner={owner} label="Add to a trip" variant={current ? "ghost" : "default"} />
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {plans.length === 0 && <p className="text-sm text-muted-foreground">Not on a trip yet. Add them to one, then record their deposit here.</p>}
         {duplicated.size > 0 && (
           <Alert variant="destructive">
             <AlertTitle>{name} is on the same trip more than once</AlertTitle>

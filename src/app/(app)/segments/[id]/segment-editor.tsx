@@ -18,7 +18,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Spinner } from "@/components/ui/spinner"
-import type { Person } from "@/lib/people/load"
+import type { Person, SegmentTag } from "@/lib/people/load"
 import {
   JOURNEY_RULES,
   RULE_FIELDS,
@@ -102,6 +102,7 @@ export function SegmentEditor({
   journeyOptions,
   templates,
   people,
+  segments,
   addedByHand,
   everyone,
 }: {
@@ -114,6 +115,7 @@ export function SegmentEditor({
   journeyOptions: Record<JourneyRuleKey, MultiSelectOption[]>
   templates: TemplateOption[]
   people: Person[]
+  segments: SegmentTag[]
   addedByHand: string[]
   everyone: MultiSelectOption[]
 }) {
@@ -298,6 +300,7 @@ export function SegmentEditor({
 
       <PeopleTable
         people={people}
+        segments={segments}
         title={title}
         actions={actions}
         empty={

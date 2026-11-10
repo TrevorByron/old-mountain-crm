@@ -51,7 +51,7 @@ export default async function SegmentPage({ params }: PageProps<"/segments/[id]"
     if (page.length < PAGE_SIZE) break
   }
   const memberIds = new Set(members.map((member) => member.id))
-  const { people: allPeople } = await loadPeople(supabase)
+  const { people: allPeople, segments } = await loadPeople(supabase)
 
   const { data: added, error: addedError } = await supabase
     .from("segment_members")
@@ -85,6 +85,7 @@ export default async function SegmentPage({ params }: PageProps<"/segments/[id]"
       rules={segmentRulesSchema.parse(segment.rules)}
       options={ruleOptions(everyone, statuses.map((status) => status.value))}
       people={allPeople.filter((person) => memberIds.has(person.id))}
+      segments={segments}
       addedByHand={added.map((row) => row.subscriber_id)}
       everyone={everyone.map((person) => ({
         value: person.id,

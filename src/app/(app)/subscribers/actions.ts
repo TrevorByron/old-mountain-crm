@@ -165,6 +165,34 @@ export async function removePerson(id: unknown): Promise<ActionResult> {
   return { ok: true }
 }
 
+// For a whole selection at once. Each person goes through the same rules as doing it one by one,
+// and the result says how many couldn't be done and why.
+async function forEachPerson(ids: unknown, run: (id: string) => Promise<ActionResult>, verb: string): Promise<ActionResult> {
+  const parsed = z.array(z.uuid()).min(1).max(5000).safeParse(ids)
+  if (!parsed.success) return { ok: false, error: "Pick at least one person." }
+
+  let firstError: string | null = null
+  let skipped = 0
+  for (const id of parsed.data) {
+    const result = await run(id)
+    if (!result.ok) {
+      skipped += 1
+      firstError ??= result.error
+    }
+  }
+  if (skipped === 0) return { ok: true }
+  const done = parsed.data.length - skipped
+  return { ok: false, error: `${done > 0 ? `${verb} ${done}. ` : ""}${skipped === 1 ? "1 couldn't be" : `${skipped} couldn't be`}: ${firstError}` }
+}
+
+export async function removePeople(ids: unknown): Promise<ActionResult> {
+  return forEachPerson(ids, removePerson, "Removed")
+}
+
+export async function unsubscribePeople(ids: unknown): Promise<ActionResult> {
+  return forEachPerson(ids, markUnsubscribed, "Unsubscribed")
+}
+
 export type PersonHit = { id: string; name: string; email: string | null; lifecycle: string }
 
 // Each word has to match somewhere, so "joan neal" finds Joan Neal.

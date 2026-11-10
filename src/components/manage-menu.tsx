@@ -29,10 +29,13 @@ export type ManageAction = {
   success?: string
   redirectTo?: string
   hidden?: boolean
+  // Runs after it works, such as clearing a selection.
+  onDone?: () => void
 }
 
-// The one place reset and remove live, so they're found the same way on every screen.
-export function ManageMenu({ label, actions, className }: { label: string; actions: ManageAction[]; className?: string }) {
+// The one place reset and remove live, so they're found the same way on every screen. It shows ⋯
+// unless it's given something else to show, like "More".
+export function ManageMenu({ label, actions, className, children }: { label: string; actions: ManageAction[]; className?: string; children?: React.ReactNode }) {
   const router = useRouter()
   const [active, setActive] = useState<ManageAction | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -48,6 +51,7 @@ export function ManageMenu({ label, actions, className }: { label: string; actio
         return
       }
       if (action.success) toast.success(action.success)
+      action.onDone?.()
       if (action.redirectTo) router.push(action.redirectTo)
     })
   }
@@ -62,8 +66,8 @@ export function ManageMenu({ label, actions, className }: { label: string; actio
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={label} className={cn("relative z-10", className)} />}>
-          <MoreHorizontalIcon />
+        <DropdownMenuTrigger render={<Button variant="ghost" size={children ? "default" : "icon-sm"} aria-label={label} className={cn("relative z-10", className)} />}>
+          {children ?? <MoreHorizontalIcon />}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           {plain.map(row)}
