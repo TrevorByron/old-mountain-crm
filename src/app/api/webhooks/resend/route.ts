@@ -13,15 +13,19 @@ export async function POST(request: NextRequest) {
   if (!deliveryId || !timestamp || !signature) return NextResponse.json({ error: "Missing signature" }, { status: 400 })
 
   const body = await request.text()
+  // Pasted secrets often pick up a space, a line break or quote marks on the way into Vercel.
+  const secret = requireEnv("RESEND_WEBHOOK_SECRET").trim().replace(/^["']|["']$/g, "")
   let payload: WebhookEventPayload
   try {
     payload = resendClient().webhooks.verify({
       payload: body,
       headers: { id: deliveryId, timestamp, signature },
-      webhookSecret: requireEnv("RESEND_WEBHOOK_SECRET"),
+      webhookSecret: secret,
     })
   } catch (error) {
-    console.error("Rejected a Resend webhook:", error instanceof Error ? error.message : error)
+    // Says what kind of secret is set, never the secret itself, so a wrong paste is easy to spot.
+    const shape = secret.startsWith("whsec_") ? "a webhook secret" : secret.startsWith("re_") ? "an API key, not the webhook secret" : "not a webhook secret"
+    console.error(`Rejected a Resend webhook (the secret set is ${shape}, ${secret.length} characters):`, error instanceof Error ? error.message : error)
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
