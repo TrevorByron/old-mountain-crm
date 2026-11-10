@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronLeftIcon, ListFilterIcon, XIcon } from "lucide-react"
+import { ChevronLeftIcon, ListFilterIcon, XIcon, PlusIcon } from "lucide-react"
 import { useEffect, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
@@ -10,6 +10,7 @@ import { ManageMenu } from "@/components/manage-menu"
 import { PeopleTable } from "@/components/people-table"
 import { MultiSelect, type MultiSelectOption } from "@/components/multi-select"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Fab } from "@/components/fab"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
@@ -51,7 +52,7 @@ function usedInGroup(group: (typeof RULE_GROUPS)[number], rules: SegmentRules) {
 
 const personLabel = (person: Person) => [person.first_name, person.last_name].filter(Boolean).join(" ") || person.email || "them"
 
-function AddPeopleDialog({ id, candidates }: { id: string; candidates: MultiSelectOption[] }) {
+function AddPeopleDialog({ id, candidates, fab = false }: { id: string; candidates: MultiSelectOption[]; fab?: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [toAdd, setToAdd] = useState<string[]>([])
@@ -73,7 +74,7 @@ function AddPeopleDialog({ id, candidates }: { id: string; candidates: MultiSele
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>Add people</DialogTrigger>
+      <DialogTrigger render={fab ? <Fab aria-label="Add people" /> : <Button />}>{fab ? <PlusIcon /> : <><PlusIcon data-icon="inline-start" />Add people</>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add people to this segment</DialogTitle>

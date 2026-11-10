@@ -21,7 +21,7 @@ export default async function TeamPage() {
 
   return (
     <>
-      <PageHeader title="Team" description="Everyone here is a full admin. Only invited emails can sign in.">
+      <PageHeader title="Team" description="Everyone here is a full admin. Only invited emails can sign in." fab={<InviteDialog fab />}>
         <InviteDialog />
       </PageHeader>
       <Card>

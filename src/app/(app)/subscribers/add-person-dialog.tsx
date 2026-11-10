@@ -1,9 +1,11 @@
 "use client"
 
+import { PlusIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { Fab } from "@/components/fab"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -22,7 +24,7 @@ import { Spinner } from "@/components/ui/spinner"
 
 import { createPerson } from "./actions"
 
-export function AddPersonDialog() {
+export function AddPersonDialog({ fab = false }: { fab?: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [marketing, setMarketing] = useState(false)
@@ -48,7 +50,7 @@ export function AddPersonDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>Add person</DialogTrigger>
+      <DialogTrigger render={fab ? <Fab aria-label="Add person" /> : <Button />}>{fab ? <PlusIcon /> : <><PlusIcon data-icon="inline-start" />Add person</>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a person</DialogTitle>

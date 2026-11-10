@@ -6,10 +6,11 @@ import { ManageMenu } from "@/components/manage-menu"
 
 import { deleteBroadcast, duplicateBroadcast, resetBroadcast } from "./actions"
 
-export function CampaignRowMenu({ id, name, isDraft }: { id: string; name: string; isDraft: boolean }) {
+export function CampaignRowMenu({ id, name, isDraft, className }: { id: string; name: string; isDraft: boolean; className?: string }) {
   const router = useRouter()
   return (
     <ManageMenu
+      className={className}
       label={`Manage ${name}`}
       actions={[
         {

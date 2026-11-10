@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Roboto } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import "./globals.css";
 
-const font = Roboto({
+// A clean geometric sans in the spirit of Flodesk's. Emails keep Roboto (see theme/tokens.ts).
+const font = DM_Sans({
   variable: "--font-app",
   weight: ["400", "500", "700"],
   subsets: ["latin"],
@@ -18,10 +19,10 @@ export const metadata: Metadata = {
   appleWebApp: { title: "Old Mountain", statusBarStyle: "default" },
 };
 
-// Lets the page reach under the notch and home bar; the header and tab bar pad for them.
+// Lets the page reach under the notch and home bar; the header and page pad for them.
 export const viewport: Viewport = {
   viewportFit: "cover",
-  themeColor: "#fcfbf8",
+  themeColor: "#f6f6f5",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

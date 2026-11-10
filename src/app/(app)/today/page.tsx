@@ -67,7 +67,7 @@ export default async function TodayPage() {
 
   return (
     <>
-      <PageHeader title="Today">
+      <PageHeader title="Today" fab={<AddPersonDialog fab />}>
         <AddPersonDialog />
       </PageHeader>
 

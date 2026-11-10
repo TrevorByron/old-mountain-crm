@@ -1,11 +1,13 @@
 "use client"
 
+import { PlusIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { PersonPicker, type PersonOption } from "@/components/person-picker"
 import { SimpleSelect } from "@/components/simple-select"
+import { Fab } from "@/components/fab"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -85,11 +87,11 @@ function AddToTripForm({ tripId, people, onDone }: { tripId: string; people: Per
   )
 }
 
-export function AddToTripDialog({ tripId, tripName, people }: { tripId: string; tripName: string; people: PersonOption[] }) {
+export function AddToTripDialog({ tripId, tripName, people, fab = false }: { tripId: string; tripName: string; people: PersonOption[]; fab?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>Add person</DialogTrigger>
+      <DialogTrigger render={fab ? <Fab aria-label="Add person" /> : <Button />}>{fab ? <PlusIcon /> : <><PlusIcon data-icon="inline-start" />Add person</>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add someone to {tripName}</DialogTitle>

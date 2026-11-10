@@ -46,7 +46,7 @@ export default async function PipelinePage() {
 
   return (
     <>
-      <PageHeader title="Pipeline" description="Everyone you're talking to seriously. Drag a card to move it along.">
+      <PageHeader title="Pipeline" description="Everyone you're talking to seriously. Drag a card to move it along." fab={<NewPlanDialog people={peopleOptions} trips={tripOptions} fab />}>
         <NewPlanDialog people={peopleOptions} trips={tripOptions} />
       </PageHeader>
       <PipelineBoard plans={planRows as unknown as PlanRow[]} trips={tripOptions} today={todayIso()} />

@@ -1,9 +1,11 @@
 "use client"
 
+import { PlusIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { Fab } from "@/components/fab"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -87,10 +89,10 @@ function NewSegmentForm() {
   )
 }
 
-export function NewSegmentDialog() {
+export function NewSegmentDialog({ fab = false }: { fab?: boolean }) {
   return (
     <Dialog>
-      <DialogTrigger render={<Button />}>New segment</DialogTrigger>
+      <DialogTrigger render={fab ? <Fab aria-label="New segment" /> : <Button />}>{fab ? <PlusIcon /> : <><PlusIcon data-icon="inline-start" />New segment</>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create a new segment</DialogTitle>

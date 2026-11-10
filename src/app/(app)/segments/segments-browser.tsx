@@ -1,16 +1,14 @@
 "use client"
 
-import { LayoutGridIcon, ListIcon, SearchIcon } from "lucide-react"
+import { ArrowUpDownIcon } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 
-import { SimpleSelect } from "@/components/simple-select"
+import { ListLayout, ToolbarMenu, ToolbarSearch, ViewSwitch } from "@/components/list-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { segmentColorHex } from "@/lib/segments/colors"
 
 import { SegmentColorButton } from "./segment-color-picker"
@@ -45,7 +43,7 @@ function sortItems(items: SegmentItem[], sort: string) {
 function SegmentCard({ item }: { item: SegmentItem }) {
   return (
     <Card className="relative gap-0 pt-0 transition-shadow hover:shadow-md">
-      <div className="flex h-24 items-center sm:h-40 justify-center px-6 text-center" style={{ backgroundColor: segmentColorHex(item.color) }}>
+      <div className="flex h-32 items-center justify-center px-6 text-center sm:h-52" style={{ backgroundColor: segmentColorHex(item.color) }}>
         <Link href={`/segments/${item.id}`} className="font-heading text-base font-medium text-neutral-900 after:absolute after:inset-0">
           {item.name}
         </Link>
@@ -106,7 +104,23 @@ function SegmentTable({ items }: { items: SegmentItem[] }) {
   )
 }
 
-export function SegmentsBrowser({ items }: { items: SegmentItem[] }) {
+// Laid out like Flodesk's Segments: the Audience heading and tabs, then search, sort and the grid
+// or list switch.
+export function SegmentsBrowser({
+  items,
+  heading,
+  description,
+  tabs,
+  actions,
+  fab,
+}: {
+  items: SegmentItem[]
+  heading: string
+  description?: string
+  tabs?: React.ReactNode
+  actions?: React.ReactNode
+  fab?: React.ReactNode
+}) {
   const [query, setQuery] = useState("")
   const [sort, setSort] = useState("name")
   const [view, setView] = useState("grid")
@@ -118,25 +132,20 @@ export function SegmentsBrowser({ items }: { items: SegmentItem[] }) {
   )
 
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        <InputGroup className="w-full sm:w-64">
-          <InputGroupAddon>
-            <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupInput aria-label="Search segments" placeholder="Search segments" value={query} onChange={(event) => setQuery(event.target.value)} />
-        </InputGroup>
-        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
-        <ToggleGroup variant="outline" aria-label="View" className="ml-auto" value={[view]} onValueChange={(next: string[]) => next[0] && setView(next[0])}>
-          <ToggleGroupItem value="grid" aria-label="Show as cards">
-            <LayoutGridIcon />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="list" aria-label="Show as a list">
-            <ListIcon />
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-
+    <ListLayout
+      heading={heading}
+      description={description}
+      tabs={tabs}
+      controls={
+        <>
+          <ToolbarSearch label="Search segments" value={query} onChange={setQuery} />
+          <ToolbarMenu label="Sort" icon={ArrowUpDownIcon} items={SORTS} value={sort} onChange={setSort} />
+          <ViewSwitch view={view} onChange={setView} />
+        </>
+      }
+      actions={actions}
+      fab={fab}
+    >
       {shown.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
@@ -145,7 +154,7 @@ export function SegmentsBrowser({ items }: { items: SegmentItem[] }) {
           </EmptyHeader>
         </Empty>
       ) : view === "grid" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 lg:gap-9 2xl:grid-cols-3">
           {shown.map((item) => (
             <SegmentCard key={item.id} item={item} />
           ))}
@@ -153,6 +162,6 @@ export function SegmentsBrowser({ items }: { items: SegmentItem[] }) {
       ) : (
         <SegmentTable items={shown} />
       )}
-    </>
+    </ListLayout>
   )
 }

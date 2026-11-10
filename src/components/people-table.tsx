@@ -2,16 +2,16 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { ListFilterIcon, SearchIcon } from "lucide-react"
+import { ArrowUpDownIcon, CircleDotIcon, ListFilterIcon } from "lucide-react"
 
 import { removePerson } from "@/app/(app)/subscribers/actions"
+import { ListLayout, ToolbarMenu, ToolbarSearch } from "@/components/list-toolbar"
 import { ManageMenu } from "@/components/manage-menu"
 import { SimpleSelect } from "@/components/simple-select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { Person } from "@/lib/people/load"
@@ -38,9 +38,8 @@ const STATUS_ITEMS = [
   ...(Object.keys(EMAIL_STATUS_LABELS) as EmailStatus[]).map((key) => ({ value: key, label: EMAIL_STATUS_LABELS[key] })),
 ]
 
-const STATUS_VARIANTS: Partial<Record<EmailStatus, "secondary" | "destructive">> = {
-  active: "secondary",
-  bounced: "destructive",
+const STATUS_VARIANTS: Partial<Record<EmailStatus, "success" | "destructive">> = {
+  active: "success",
   complained: "destructive",
 }
 
@@ -48,7 +47,7 @@ export function SegmentTags({ segments, className }: { segments: Person["segment
   return (
     <div className={className ?? "flex flex-wrap gap-1"}>
       {segments.map((segment) => (
-        <Badge key={segment.id} variant="outline" className="border-black/10 text-neutral-900" style={{ backgroundColor: segmentColorHex(segment.color) }}>
+        <Badge key={segment.id} variant="outline" className="h-6 rounded-md border-black/5 px-2 font-normal text-neutral-900" style={{ backgroundColor: segmentColorHex(segment.color) }}>
           {segment.name}
         </Badge>
       ))}
@@ -56,19 +55,27 @@ export function SegmentTags({ segments, className }: { segments: Person["segment
   )
 }
 
-// The one list of people, used wherever people are listed. A page puts its title on the left and
-// its own buttons on the right, and `membership` adds a column for a page's own detail.
+// The one list of people, used wherever people are listed, laid out like Flodesk's Audience. A page
+// can give it a heading, puts its tabs or title on the left of the toolbar and its own buttons on
+// the right, and `membership` adds a column for a page's own detail. On phones `fab` replaces the
+// buttons with a floating + button.
 export function PeopleTable({
   people,
+  heading,
+  description,
   title,
   actions,
+  fab,
   lifecycles = LIFECYCLES.map((item) => item.key),
   membership,
   empty,
 }: {
   people: Person[]
+  heading?: string
+  description?: string
   title?: React.ReactNode
   actions?: React.ReactNode
+  fab?: React.ReactNode
   // Which relationships the filter offers, so the Customers tab only shows the ones it can contain.
   lifecycles?: string[]
   membership?: { header: string; cell: (person: Person) => React.ReactNode }
@@ -118,41 +125,42 @@ export function PeopleTable({
     setPage(0)
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* On phones the title and the page's buttons come first, then search, then the filters in one row. */}
-      <div className="flex flex-wrap items-center gap-2">
-        {title && <div className="mr-auto min-w-0">{title}</div>}
-        <InputGroup className="w-full max-sm:order-1 sm:w-44">
-          <InputGroupAddon>
-            <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupInput aria-label="Search people" placeholder="Search" value={search} onChange={(event) => resetPage(setSearch)(event.target.value)} />
-        </InputGroup>
-        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="max-sm:order-1 sm:w-36" />
-        <SimpleSelect label="Status" items={STATUS_ITEMS} value={status} onChange={resetPage(setStatus)} className="min-w-0 flex-1 max-sm:order-1 sm:w-36 sm:flex-none" />
-        <Popover>
-          <PopoverTrigger render={<Button variant="outline" aria-label="Filter" className="max-sm:order-1" />}>
-            <ListFilterIcon data-icon="inline-start" />
-            <span className="max-sm:hidden">Filter</span>
-            {filterCount > 0 && ` (${filterCount})`}
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-72">
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="people-relationship">Relationship</FieldLabel>
-                <SimpleSelect id="people-relationship" items={lifecycleItems} value={lifecycle} onChange={resetPage(setLifecycle)} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="people-interest">Interest</FieldLabel>
-                <SimpleSelect id="people-interest" items={interestItems} value={interest} onChange={resetPage(setInterest)} />
-              </Field>
-            </FieldGroup>
-          </PopoverContent>
-        </Popover>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+  const controls = (
+    <>
+      <ToolbarSearch label="Search people" value={search} onChange={resetPage(setSearch)} />
+      <ToolbarMenu label="Sort" icon={ArrowUpDownIcon} items={SORTS} value={sort} onChange={setSort} />
+      <div className="max-md:hidden">
+        <ToolbarMenu label="Status" icon={CircleDotIcon} items={STATUS_ITEMS} value={status} onChange={resetPage(setStatus)} showChoice />
       </div>
+      <Popover>
+        <PopoverTrigger render={<Button variant="ghost" aria-label="Filter" className="max-md:size-9 max-md:px-0" />}>
+          <ListFilterIcon className="md:hidden" />
+          <span className="max-md:hidden">Filter</span>
+          {filterCount > 0 && <span className="max-md:hidden">({filterCount})</span>}
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-72">
+          <FieldGroup>
+            {/* Phones have no room for the Status menu, so it lives here. */}
+            <Field className="md:hidden">
+              <FieldLabel htmlFor="people-status">Status</FieldLabel>
+              <SimpleSelect id="people-status" items={STATUS_ITEMS} value={status} onChange={resetPage(setStatus)} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="people-relationship">Relationship</FieldLabel>
+              <SimpleSelect id="people-relationship" items={lifecycleItems} value={lifecycle} onChange={resetPage(setLifecycle)} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="people-interest">Interest</FieldLabel>
+              <SimpleSelect id="people-interest" items={interestItems} value={interest} onChange={resetPage(setInterest)} />
+            </Field>
+          </FieldGroup>
+        </PopoverContent>
+      </Popover>
+    </>
+  )
 
+  return (
+    <ListLayout heading={heading} description={description} tabs={title} controls={controls} actions={actions} fab={fab}>
       {people.length === 0 ? (
         (empty ?? (
           <Empty className="border">
@@ -168,8 +176,8 @@ export function PeopleTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Subscriber</TableHead>
-                <TableHead className="hidden sm:table-cell">Status</TableHead>
-                <TableHead className="hidden md:table-cell">Last engagement</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last engagement</TableHead>
                 <TableHead className="hidden text-right lg:table-cell">Segments</TableHead>
                 {membership && <TableHead className="w-24 text-right">{membership.header}</TableHead>}
                 <TableHead className="w-10" />
@@ -191,24 +199,16 @@ export function PeopleTable({
                   const personStatus = emailStatus(person)
                   return (
                     <TableRow key={person.id} className="relative">
-                      {/* On phones this column takes the spare width and long emails trim to one line. */}
-                      <TableCell className="py-3 whitespace-normal max-sm:w-full max-sm:max-w-0">
-                        <Link
-                          href={`/subscribers/${person.id}`}
-                          className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline max-sm:block max-sm:truncate"
-                        >
+                      <TableCell className="h-[4.5rem]">
+                        <Link href={`/subscribers/${person.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
                           {person.email ?? (name || "No name")}
                         </Link>
-                        {person.email && name && <p className="text-sm text-muted-foreground max-sm:truncate">{name}</p>}
-                        {/* Phones have no room for the Status column, so the badge sits under the name. */}
-                        <div className="mt-1 sm:hidden">
-                          <Badge variant={STATUS_VARIANTS[personStatus] ?? "outline"}>{EMAIL_STATUS_LABELS[personStatus]}</Badge>
-                        </div>
+                        {person.email && name && <p className="text-xs text-muted-foreground">{name}</p>}
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <Badge variant={STATUS_VARIANTS[personStatus] ?? "outline"}>{EMAIL_STATUS_LABELS[personStatus]}</Badge>
+                      <TableCell>
+                        <Badge variant={STATUS_VARIANTS[personStatus] ?? "secondary"}>{EMAIL_STATUS_LABELS[personStatus]}</Badge>
                       </TableCell>
-                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                      <TableCell className="text-muted-foreground">
                         {person.last_touch ? shortDate.format(new Date(person.last_touch)) : "-"}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
@@ -260,6 +260,6 @@ export function PeopleTable({
           </div>
         </>
       )}
-    </div>
+    </ListLayout>
   )
 }

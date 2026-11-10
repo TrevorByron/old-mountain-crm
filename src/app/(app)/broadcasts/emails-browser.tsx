@@ -1,17 +1,15 @@
 "use client"
 
-import { ChartColumnIcon, LayoutGridIcon, ListIcon, SearchIcon } from "lucide-react"
+import { ArrowUpDownIcon, ChartColumnIcon } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
 
-import { SimpleSelect } from "@/components/simple-select"
+import { ListLayout, ToolbarMenu, ToolbarPills, ToolbarSearch, ViewSwitch } from "@/components/list-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 import { CampaignRowMenu } from "./campaign-row"
 import { EmailThumbnail } from "./email-thumbnail"
@@ -33,13 +31,14 @@ export type EmailItem = {
 const shortDate = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })
 const longDate = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" })
 
-const STATE_VARIANTS: Record<string, "secondary" | "outline" | "destructive" | "default"> = {
-  draft: "outline",
+// Flodesk's status pills: gray while it's being worked on, green once it's out.
+const STATE_VARIANTS: Record<string, "secondary" | "success" | "destructive"> = {
+  draft: "secondary",
   scheduled: "secondary",
   sending: "secondary",
-  sent: "default",
+  sent: "success",
   failed: "destructive",
-  cancelled: "outline",
+  cancelled: "secondary",
 }
 
 // One line that says where an email stands, like "Sent to 47 on Jul 23".
@@ -59,9 +58,9 @@ function statusLabel(item: EmailItem) {
 }
 
 const STATUS_FILTERS = [
-  { value: "all", label: "All statuses" },
+  { value: "all", label: "All" },
   { value: "draft", label: "Drafts" },
-  { value: "scheduled", label: "Scheduled or sending" },
+  { value: "scheduled", label: "Scheduled" },
   { value: "sent", label: "Sent" },
   { value: "failed", label: "Stopped" },
 ]
@@ -90,18 +89,24 @@ function sortItems(items: EmailItem[], sort: string) {
 
 function EmailCard({ item }: { item: EmailItem }) {
   return (
-    <Card className="relative gap-0 pt-0 transition-shadow hover:shadow-md">
+    // Flodesk's email card: the preview with its menu floating on top, then the name and a status pill.
+    <Card className="relative gap-0 pt-0 transition-shadow hover:shadow-lg">
       <EmailThumbnail html={item.html} title={`Preview of ${item.name}`} />
-      <CardContent className="flex flex-col gap-1 border-t pt-4">
-        <CardTitle className="truncate">
+      <CampaignRowMenu
+        id={item.id}
+        name={item.name}
+        isDraft={item.state === "draft"}
+        className="absolute! top-3 right-3 size-9 rounded-full bg-card shadow-sm hover:bg-card"
+      />
+      <CardContent className="pt-5">
+        <CardTitle className="truncate text-sm">
           <Link href={`/broadcasts/${item.id}`} className="after:absolute after:inset-0">
             {item.name}
           </Link>
         </CardTitle>
-        {item.subject && <p className="truncate text-sm text-muted-foreground">{item.subject}</p>}
       </CardContent>
-      <CardFooter className="flex items-center gap-2 border-t-0 bg-transparent pt-3">
-        <Badge variant={STATE_VARIANTS[item.state] ?? "outline"} className="min-w-0 truncate">
+      <CardFooter className="flex items-center gap-2 border-t-0 pt-3">
+        <Badge variant={STATE_VARIANTS[item.state] ?? "secondary"} className="min-w-0 truncate">
           {statusLabel(item)}
         </Badge>
         {item.state === "sent" && item.opened && (
@@ -122,7 +127,6 @@ function EmailCard({ item }: { item: EmailItem }) {
               <ChartColumnIcon />
             </Button>
           )}
-          <CampaignRowMenu id={item.id} name={item.name} isDraft={item.state === "draft"} />
         </div>
       </CardFooter>
     </Card>
@@ -157,7 +161,7 @@ function EmailTable({ items }: { items: EmailItem[] }) {
                     {item.subject && <p className="text-muted-foreground">{item.subject}</p>}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATE_VARIANTS[item.state] ?? "outline"}>{statusLabel(item)}</Badge>
+                    <Badge variant={STATE_VARIANTS[item.state] ?? "secondary"}>{statusLabel(item)}</Badge>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">{when ? longDate.format(new Date(when)) : "-"}</TableCell>
                   <TableCell className="text-right tabular-nums">{item.recipients}</TableCell>
@@ -176,7 +180,21 @@ function EmailTable({ items }: { items: EmailItem[] }) {
   )
 }
 
-export function EmailsBrowser({ items }: { items: EmailItem[] }) {
+// Flodesk's Emails page: the heading, status pills on the left, then search, sort and the grid or
+// list switch on the right.
+export function EmailsBrowser({
+  items,
+  heading,
+  description,
+  actions,
+  fab,
+}: {
+  items: EmailItem[]
+  heading: string
+  description?: string
+  actions?: React.ReactNode
+  fab?: React.ReactNode
+}) {
   const [query, setQuery] = useState("")
   const [sort, setSort] = useState("edited")
   const [status, setStatus] = useState("all")
@@ -193,33 +211,20 @@ export function EmailsBrowser({ items }: { items: EmailItem[] }) {
   )
 
   return (
-    <>
-      {/* On phones: search and the view switch share a row, then the two dropdowns split the next. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <InputGroup className="min-w-0 flex-1 sm:w-64 sm:flex-none">
-          <InputGroupAddon>
-            <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupInput aria-label="Search emails" placeholder="Search by name or subject" value={query} onChange={(event) => setQuery(event.target.value)} />
-        </InputGroup>
-        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="w-[calc(50%-0.25rem)] max-sm:order-1 sm:w-44" />
-        <SimpleSelect label="Status" items={STATUS_FILTERS} value={status} onChange={setStatus} className="w-[calc(50%-0.25rem)] max-sm:order-1 sm:w-48" />
-        <ToggleGroup
-          variant="outline"
-          aria-label="View"
-          className="ml-auto"
-          value={[view]}
-          onValueChange={(next: string[]) => next[0] && setView(next[0])}
-        >
-          <ToggleGroupItem value="grid" aria-label="Show as cards">
-            <LayoutGridIcon />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="list" aria-label="Show as a list">
-            <ListIcon />
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-
+    <ListLayout
+      heading={heading}
+      description={description}
+      tabs={<ToolbarPills label="Show" items={STATUS_FILTERS} value={status} onChange={setStatus} />}
+      controls={
+        <>
+          <ToolbarSearch label="Search emails" placeholder="Name or subject" value={query} onChange={setQuery} />
+          <ToolbarMenu label="Sort" icon={ArrowUpDownIcon} items={SORTS} value={sort} onChange={setSort} />
+          <ViewSwitch view={view} onChange={setView} />
+        </>
+      }
+      actions={actions}
+      fab={fab}
+    >
       {shown.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
@@ -228,7 +233,7 @@ export function EmailsBrowser({ items }: { items: EmailItem[] }) {
           </EmptyHeader>
         </Empty>
       ) : view === "grid" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 lg:gap-9 2xl:grid-cols-3">
           {shown.map((item) => (
             <EmailCard key={item.id} item={item} />
           ))}
@@ -236,6 +241,6 @@ export function EmailsBrowser({ items }: { items: EmailItem[] }) {
       ) : (
         <EmailTable items={shown} />
       )}
-    </>
+    </ListLayout>
   )
 }

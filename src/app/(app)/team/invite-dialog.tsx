@@ -1,8 +1,10 @@
 "use client"
 
+import { PlusIcon } from "lucide-react"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { Fab } from "@/components/fab"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,7 +21,7 @@ import { Spinner } from "@/components/ui/spinner"
 
 import { inviteMember } from "./actions"
 
-export function InviteDialog() {
+export function InviteDialog({ fab = false }: { fab?: boolean }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -38,7 +40,7 @@ export function InviteDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>Invite teammate</DialogTrigger>
+      <DialogTrigger render={fab ? <Fab aria-label="Invite teammate" /> : <Button />}>{fab ? <PlusIcon /> : <><PlusIcon data-icon="inline-start" />Invite teammate</>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Invite a teammate</DialogTitle>

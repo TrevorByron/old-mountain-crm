@@ -1,6 +1,6 @@
 import { ListFilterIcon } from "lucide-react"
 
-import { AudienceHeader } from "@/components/audience-header"
+import { AudienceHeader, AudienceTabs } from "@/components/audience-header"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { requireTeamMember } from "@/lib/auth"
 import { LIFECYCLES, STAGES } from "@/lib/pipeline/stages"
@@ -48,29 +48,39 @@ export default async function SegmentsPage() {
     })
   )
 
+  const description = "Groups you can email. They update on their own."
+  if (rows.length > 0) {
+    return (
+      <SegmentsBrowser
+        items={rows}
+        heading="Audience"
+        description={description}
+        tabs={<AudienceTabs active="segments" />}
+        actions={<NewSegmentDialog />}
+        fab={<NewSegmentDialog fab />}
+      />
+    )
+  }
+
   return (
     <>
-      <AudienceHeader active="segments" description="Groups you can email. They update on their own.">
+      <AudienceHeader active="segments" description={description} fab={<NewSegmentDialog fab />}>
         <NewSegmentDialog />
       </AudienceHeader>
-      {rows.length === 0 ? (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <ListFilterIcon />
-            </EmptyMedia>
-            <EmptyTitle>No segments yet</EmptyTitle>
-            <EmptyDescription>
-              Create one for a group you&apos;ll email more than once, like everyone interested in a 2027 safari.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <NewSegmentDialog />
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <SegmentsBrowser items={rows} />
-      )}
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <ListFilterIcon />
+          </EmptyMedia>
+          <EmptyTitle>No segments yet</EmptyTitle>
+          <EmptyDescription>
+            Create one for a group you&apos;ll email more than once, like everyone interested in a 2027 safari.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <NewSegmentDialog />
+        </EmptyContent>
+      </Empty>
     </>
   )
 }

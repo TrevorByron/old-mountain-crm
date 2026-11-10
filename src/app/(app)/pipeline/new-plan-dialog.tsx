@@ -1,11 +1,13 @@
 "use client"
 
+import { PlusIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { PersonPicker, type PersonOption } from "@/components/person-picker"
 import { SimpleSelect, type SimpleOption } from "@/components/simple-select"
+import { Fab } from "@/components/fab"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -32,6 +34,7 @@ export function NewPlanDialog({
   defaultOwner = null,
   label = "New trip plan",
   variant = "default",
+  fab = false,
 }: {
   people: PersonOption[]
   trips: SimpleOption[]
@@ -39,6 +42,7 @@ export function NewPlanDialog({
   defaultOwner?: string | null
   label?: string
   variant?: "default" | "outline" | "ghost"
+  fab?: boolean
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -67,7 +71,7 @@ export function NewPlanDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant={variant} />}>{label}</DialogTrigger>
+      <DialogTrigger render={fab ? <Fab aria-label={label} /> : <Button variant={variant} />}>{fab ? <PlusIcon /> : <><PlusIcon data-icon="inline-start" />{label}</>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{label}</DialogTitle>

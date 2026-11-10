@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { searchPeople, type PersonHit } from "@/app/(app)/subscribers/actions"
-import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandDialog,
@@ -16,9 +15,11 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command"
+import { SidebarMenuButton } from "@/components/ui/sidebar"
 import { lifecycleLabel } from "@/lib/pipeline/stages"
 
-export function GlobalSearch() {
+// ⌘K anywhere, or the "Find a person" item in the sidebar.
+export function GlobalSearch({ className }: { className?: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -55,11 +56,11 @@ export function GlobalSearch() {
 
   return (
     <>
-      <Button variant="outline" className="w-full min-w-0 max-w-xs shrink justify-start text-muted-foreground" onClick={() => setOpen(true)}>
-        <SearchIcon data-icon="inline-start" />
-        Find a person
-        <CommandShortcut className="hidden md:inline">⌘K</CommandShortcut>
-      </Button>
+      <SidebarMenuButton tooltip="Find a person" className={className} onClick={() => setOpen(true)}>
+        <SearchIcon />
+        <span>Find a person</span>
+        <CommandShortcut className="hidden group-data-[collapsible=icon]:hidden md:inline">⌘K</CommandShortcut>
+      </SidebarMenuButton>
       <CommandDialog open={open} onOpenChange={setOpen} title="Find a person" description="Search by name, email, phone or tag.">
         <Command shouldFilter={false}>
           <CommandInput placeholder="Name, email, phone or tag" value={query} onValueChange={setQuery} />

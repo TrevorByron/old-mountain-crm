@@ -1,4 +1,4 @@
-import { AudienceHeader, AudienceTabs } from "@/components/audience-header"
+import { AudienceTabs } from "@/components/audience-header"
 import { PeopleTable } from "@/components/people-table"
 import { requireTeamMember } from "@/lib/auth"
 import { loadPeople } from "@/lib/people/load"
@@ -20,17 +20,15 @@ export default async function SubscribersPage({ searchParams }: PageProps<"/subs
 
   return (
     <>
-      <AudienceHeader
-        active={customersOnly ? "customers" : "subscribers"}
-        description={customersOnly ? "People who've booked or traveled with you." : "Everyone you know: on your list, in conversation, or back from a safari."}
-        tabs={false}
-      />
       <PeopleTable
         key={customersOnly ? "customers" : "everyone"}
         people={people}
+        heading="Audience"
+        description={customersOnly ? "People who've booked or traveled with you." : "Everyone you know: on your list, in conversation, or back from a safari."}
         lifecycles={customersOnly ? CUSTOMER_LIFECYCLES : undefined}
         title={<AudienceTabs active={customersOnly ? "customers" : "subscribers"} />}
         actions={<AddPersonDialog />}
+        fab={<AddPersonDialog fab />}
       />
     </>
   )

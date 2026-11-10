@@ -61,27 +61,36 @@ export default async function BroadcastsPage() {
     })
   )
 
+  const description = "Newsletters and announcements to the segments you choose."
+  if (items.length > 0) {
+    return (
+      <EmailsBrowser
+        items={items}
+        heading="Emails"
+        description={description}
+        actions={<NewBroadcastDialog templates={templates} />}
+        fab={<NewBroadcastDialog templates={templates} fab />}
+      />
+    )
+  }
+
   return (
     <>
-      <PageHeader title="Emails" description="Newsletters and announcements to the segments you choose.">
+      <PageHeader title="Emails" description={description} fab={<NewBroadcastDialog templates={templates} fab />}>
         <NewBroadcastDialog templates={templates} />
       </PageHeader>
-      {items.length === 0 ? (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SendIcon />
-            </EmptyMedia>
-            <EmptyTitle>No emails yet</EmptyTitle>
-            <EmptyDescription>Start from a template, write your email and send yourself a test.</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <NewBroadcastDialog templates={templates} />
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <EmailsBrowser items={items} />
-      )}
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <SendIcon />
+          </EmptyMedia>
+          <EmptyTitle>No emails yet</EmptyTitle>
+          <EmptyDescription>Start from a template, write your email and send yourself a test.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <NewBroadcastDialog templates={templates} />
+        </EmptyContent>
+      </Empty>
     </>
   )
 }

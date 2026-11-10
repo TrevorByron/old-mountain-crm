@@ -1,9 +1,11 @@
 "use client"
 
+import { PlusIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { Fab } from "@/components/fab"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -13,7 +15,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { saveTrip } from "./actions"
 
 // Only the name is needed to start. Everything else fills in on the trip's own page.
-export function TripDialog() {
+export function TripDialog({ fab = false }: { fab?: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -39,7 +41,7 @@ export function TripDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>New trip</DialogTrigger>
+      <DialogTrigger render={fab ? <Fab aria-label="New trip" /> : <Button />}>{fab ? <PlusIcon /> : <><PlusIcon data-icon="inline-start" />New trip</>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New trip</DialogTitle>

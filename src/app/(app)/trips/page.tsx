@@ -50,7 +50,7 @@ export default async function TripsPage() {
 
   return (
     <>
-      <PageHeader title="Trips" description="Click any date or seat count to change it.">
+      <PageHeader title="Trips" description="Click any date or seat count to change it." fab={<TripDialog fab />}>
         <TripDialog />
       </PageHeader>
       {trips.length === 0 ? (

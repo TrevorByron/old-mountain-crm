@@ -4,7 +4,7 @@ import { ArrowLeftIcon, ChevronDownIcon } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
-import { Bar, BarChart, PolarAngleAxis, RadialBar, RadialBarChart, XAxis } from "recharts"
+import { Bar, BarChart, Cell, PolarAngleAxis, RadialBar, RadialBarChart, XAxis } from "recharts"
 import { toast } from "sonner"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -22,11 +22,11 @@ import { resumeBroadcast } from "../actions"
 
 const longDate = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" })
 
-const STATUS_VARIANTS: Partial<Record<RecipientStatus, "default" | "secondary" | "destructive" | "outline">> = {
+const STATUS_VARIANTS: Partial<Record<RecipientStatus, "success" | "secondary" | "destructive">> = {
   complained: "destructive",
   bounced: "destructive",
-  clicked: "default",
-  opened: "secondary",
+  clicked: "success",
+  opened: "success",
 }
 const STATUS_ORDER: RecipientStatus[] = ["complained", "bounced", "unsubscribed", "clicked", "opened", "delivered", "sent"]
 
@@ -129,11 +129,12 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
   const summary = summarizeResults(sends)
   const openRate = rate(summary.opened, summary.delivered, summary.sent)
   const clickRate = rate(summary.clicked, summary.delivered, summary.sent)
+  // Each stage gets its own color, like Flodesk's report.
   const glance = [
-    { stage: "Sent", people: summary.sent },
-    { stage: "Delivered", people: summary.delivered },
-    { stage: "Opened", people: summary.opened },
-    { stage: "Clicked", people: summary.clicked },
+    { stage: "Sent", people: summary.sent, color: "var(--chart-1)" },
+    { stage: "Delivered", people: summary.delivered, color: "var(--chart-2)" },
+    { stage: "Opened", people: summary.opened, color: "var(--chart-3)" },
+    { stage: "Clicked", people: summary.clicked, color: "var(--chart-4)" },
   ]
   const recipients = sends
     .filter((send) => send.sent_at)
@@ -201,7 +202,11 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
               <BarChart data={glance} margin={{ top: 8, left: 8, right: 8, bottom: 8 }} barCategoryGap="30%">
                 <XAxis dataKey="stage" tickLine={false} axisLine={false} height={44} interval={0} tick={<GlanceTick data={glance} />} />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel={false} />} />
-                <Bar dataKey="people" fill="var(--color-people)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                <Bar dataKey="people" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                  {glance.map((entry) => (
+                    <Cell key={entry.stage} fill={entry.color} />
+                  ))}
+                </Bar>
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -301,7 +306,7 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
                           )}
                         </TableCell>
                         <TableCell className="w-28 text-right sm:w-40">
-                          <Badge variant={STATUS_VARIANTS[status] ?? "outline"}>{RECIPIENT_STATUS_LABELS[status]}</Badge>
+                          <Badge variant={STATUS_VARIANTS[status] ?? "secondary"}>{RECIPIENT_STATUS_LABELS[status]}</Badge>
                         </TableCell>
                       </TableRow>
                     ))}

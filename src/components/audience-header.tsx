@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const TABS = [
-  { value: "subscribers", label: "Subscribers", href: "/subscribers" },
+  { value: "subscribers", label: "All subscribers", href: "/subscribers" },
   { value: "customers", label: "Customers", href: "/subscribers?show=customers" },
   { value: "segments", label: "Segments", href: "/segments" },
 ] as const
@@ -17,7 +17,7 @@ export function AudienceTabs({ active }: { active: AudienceTab }) {
     <Tabs value={active}>
       <TabsList>
         {TABS.map((tab) => (
-          <TabsTrigger key={tab.value} value={tab.value} render={<Link href={tab.href} />} nativeButton={false}>
+          <TabsTrigger key={tab.value} value={tab.value} render={<Link href={tab.href} />} nativeButton={false} className="flex-none">
             {tab.label}
           </TabsTrigger>
         ))}
@@ -26,24 +26,25 @@ export function AudienceTabs({ active }: { active: AudienceTab }) {
   )
 }
 
-// One heading for everyone you know. Pages with a people table put the tabs in its toolbar instead.
+// One heading for everyone you know, with the tabs under it. Pages with a people table let the
+// table draw this instead.
 export function AudienceHeader({
   active,
   description,
-  tabs = true,
+  fab,
   children,
 }: {
   active: AudienceTab
   description: string
-  tabs?: boolean
+  fab?: React.ReactNode
   children?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader title="Audience" description={description}>
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Audience" description={description} fab={fab}>
         {children}
       </PageHeader>
-      {tabs && <AudienceTabs active={active} />}
+      <AudienceTabs active={active} />
     </div>
   )
 }

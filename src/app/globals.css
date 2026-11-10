@@ -38,6 +38,8 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,72 +50,76 @@
 }
 
 :root {
-  --background: #fcfbf8;
-  --foreground: #1a1a14;
+  --background: #f6f6f5;
+  --foreground: #111100;
   --card: #ffffff;
-  --card-foreground: #1a1a14;
+  --card-foreground: #111100;
   --popover: #ffffff;
-  --popover-foreground: #1a1a14;
-  --primary: #2c3a22;
-  --primary-foreground: #f0e6d3;
-  --secondary: #f0e6d3;
-  --secondary-foreground: #1a1a14;
-  --muted: #f4ead7;
-  --muted-foreground: #5c5a4a;
-  --accent: #e8dcc5;
-  --accent-foreground: #1a1a14;
-  --destructive: #b3402a;
-  --border: #e3d8c2;
-  --input: #d6c9ae;
-  --ring: #476b35;
-  --chart-1: #476b35;
-  --chart-2: #c4a96b;
-  --chart-3: #2c3a22;
-  --chart-4: #8a7a4f;
-  --chart-5: #6b8a5a;
-  --sidebar: #141a10;
-  --sidebar-foreground: #f0e6d3;
-  --sidebar-primary: #c4a96b;
-  --sidebar-primary-foreground: #141a10;
-  --sidebar-accent: #2c3a22;
-  --sidebar-accent-foreground: #f0e6d3;
-  --sidebar-border: #2c3a22;
-  --sidebar-ring: #c4a96b;
-  --radius: 0.5rem;
+  --popover-foreground: #111100;
+  --primary: #111100;
+  --primary-foreground: #fafafa;
+  --secondary: #f3f3f1;
+  --secondary-foreground: #111100;
+  --muted: #f3f3f1;
+  --muted-foreground: #6f6f68;
+  --accent: #efefec;
+  --accent-foreground: #111100;
+  --destructive: #c2412d;
+  --border: #e9e9e6;
+  --input: #e2e2de;
+  --ring: #a3a39c;
+  --chart-1: #bcc185;
+  --chart-2: #f1e173;
+  --chart-3: #a9bcd0;
+  --chart-4: #f2c49b;
+  --chart-5: #476b35;
+  --sidebar: #f6f6f5;
+  --sidebar-foreground: #111100;
+  --sidebar-primary: #111100;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #ebebe8;
+  --sidebar-accent-foreground: #111100;
+  --sidebar-border: #e6e6e3;
+  --sidebar-ring: #a3a39c;
+  --radius: 0.75rem;
+  --success: #d9edd4;
+  --success-foreground: #192e14;
 }
 
 .dark {
-  --background: #0e1209;
-  --foreground: #f0e6d3;
-  --card: #141a10;
-  --card-foreground: #f0e6d3;
-  --popover: #141a10;
-  --popover-foreground: #f0e6d3;
-  --primary: #c4a96b;
-  --primary-foreground: #141a10;
-  --secondary: #2c3a22;
-  --secondary-foreground: #f0e6d3;
-  --muted: #1c2416;
-  --muted-foreground: #b3ab98;
-  --accent: #2c3a22;
-  --accent-foreground: #f0e6d3;
+  --background: #111110;
+  --foreground: #f2f2ef;
+  --card: #1a1a18;
+  --card-foreground: #f2f2ef;
+  --popover: #1a1a18;
+  --popover-foreground: #f2f2ef;
+  --primary: #f2f2ef;
+  --primary-foreground: #111110;
+  --secondary: #262624;
+  --secondary-foreground: #f2f2ef;
+  --muted: #262624;
+  --muted-foreground: #a3a39c;
+  --accent: #2b2b28;
+  --accent-foreground: #f2f2ef;
   --destructive: #e2765e;
-  --border: #2c3a22;
-  --input: #364a28;
-  --ring: #c4a96b;
-  --chart-1: #c4a96b;
-  --chart-2: #6b8a5a;
-  --chart-3: #f0e6d3;
-  --chart-4: #8a7a4f;
-  --chart-5: #476b35;
-  --sidebar: #141a10;
-  --sidebar-foreground: #f0e6d3;
-  --sidebar-primary: #c4a96b;
-  --sidebar-primary-foreground: #141a10;
-  --sidebar-accent: #2c3a22;
-  --sidebar-accent-foreground: #f0e6d3;
-  --sidebar-border: #2c3a22;
-  --sidebar-ring: #c4a96b;
+  --border: #2e2e2b;
+  --input: #383834;
+  --ring: #6f6f68;
+  --chart-1: #bcc185;
+  --chart-2: #f1e173;
+  --chart-3: #a9bcd0;
+  --chart-4: #f2c49b;
+  --chart-5: #6b8a5a;
+  --sidebar: #111110;
+  --sidebar-foreground: #f2f2ef;
+  --sidebar-primary: #f2f2ef;
+  --sidebar-primary-foreground: #111110;
+  --sidebar-accent: #262624;
+  --sidebar-accent-foreground: #f2f2ef;
+  --sidebar-border: #2e2e2b;
+  --sidebar-ring: #6f6f68;
+  --success: #23361f;
+  --success-foreground: #cfe7c8;
 }
 
 @layer base {
@@ -126,11 +132,11 @@
   html {
     @apply font-sans;
   }
-  /* Phones get everything 25% bigger, so the standard 2rem controls are 40px tall and easy to tap.
-     Media queries stay in px, so the breakpoints don't move with it. */
+  /* Phones get everything 12.5% bigger, so the standard 2.25rem controls are about 40px tall and
+     easy to tap. Media queries stay in px, so the breakpoints don't move with it. */
   @media (max-width: 767px) {
     html {
-      font-size: 125%;
+      font-size: 112.5%;
     }
   }
 }

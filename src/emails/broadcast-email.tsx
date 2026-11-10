@@ -14,9 +14,12 @@ import {
   type ImageTextBlock,
   type RichNode,
 } from "@/lib/broadcasts/blocks"
-import { brand, fontFamily, light } from "@/theme/tokens"
+import { brand, fontFamily } from "@/theme/tokens"
 
 import { RichText, type RichTextTheme } from "./rich-text"
+
+// Emails keep the brand's warm gray for quiet text, whatever the app's own grays are.
+const MUTED_TEXT = "#5c5a4a"
 
 export type EmailFooter = {
   brandName: string
@@ -90,7 +93,7 @@ function EditingPlaceholder({ children }: { children: ReactNode }) {
       style={{
         border: `2px dashed ${brand.gold}`,
         borderRadius: "8px",
-        color: light["muted-foreground"],
+        color: MUTED_TEXT,
         fontFamily: fontFamily.emailStack,
         fontSize: "15px",
         padding: "28px 16px",
@@ -287,7 +290,7 @@ function BlockView({ block, context }: { block: Block; context: RenderContext })
 
 // Fixed in every email and not a block, so the law's requirements can't be deleted by accident.
 function Footer({ footer, paper }: { footer: EmailFooter; paper: ColorKey }) {
-  const color = isDarkColor(paper) ? brand.cream : light["muted-foreground"]
+  const color = isDarkColor(paper) ? brand.cream : MUTED_TEXT
   const text = { color, fontFamily: fontFamily.emailStack, fontSize: "12px", lineHeight: "18px", margin: "0 0 4px", textAlign: "center" as const }
   const link = { color, textDecoration: "underline" }
   return (

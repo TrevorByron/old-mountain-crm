@@ -1,10 +1,11 @@
 "use client"
 
-import { Trash2Icon } from "lucide-react"
+import { PlusIcon, Trash2Icon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
 import { toast } from "sonner"
 
+import { Fab } from "@/components/fab"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,11 +26,13 @@ export function NewBroadcastDialog({
   segmentId = null,
   label = "New email",
   variant = "default",
+  fab = false,
 }: {
   templates: TemplateOption[]
   segmentId?: string | null
   label?: string
   variant?: "default" | "outline"
+  fab?: boolean
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -68,7 +71,7 @@ export function NewBroadcastDialog({
 
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant={variant} />}>{label}</DialogTrigger>
+      <DialogTrigger render={fab ? <Fab aria-label={label} /> : <Button variant={variant} />}>{fab ? <PlusIcon /> : <><PlusIcon data-icon="inline-start" />{label}</>}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Start from a template</DialogTitle>
