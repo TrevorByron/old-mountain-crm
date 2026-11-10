@@ -45,7 +45,7 @@ function sortItems(items: SegmentItem[], sort: string) {
 function SegmentCard({ item }: { item: SegmentItem }) {
   return (
     <Card className="relative gap-0 pt-0 transition-shadow hover:shadow-md">
-      <div className="flex h-40 items-center justify-center px-6 text-center" style={{ backgroundColor: segmentColorHex(item.color) }}>
+      <div className="flex h-24 items-center sm:h-40 justify-center px-6 text-center" style={{ backgroundColor: segmentColorHex(item.color) }}>
         <Link href={`/segments/${item.id}`} className="font-heading text-base font-medium text-neutral-900 after:absolute after:inset-0">
           {item.name}
         </Link>
@@ -126,7 +126,7 @@ export function SegmentsBrowser({ items }: { items: SegmentItem[] }) {
           </InputGroupAddon>
           <InputGroupInput aria-label="Search segments" placeholder="Search segments" value={query} onChange={(event) => setQuery(event.target.value)} />
         </InputGroup>
-        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="w-44" />
+        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
         <ToggleGroup variant="outline" aria-label="View" className="ml-auto" value={[view]} onValueChange={(next: string[]) => next[0] && setView(next[0])}>
           <ToggleGroupItem value="grid" aria-label="Show as cards">
             <LayoutGridIcon />

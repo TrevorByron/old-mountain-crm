@@ -194,15 +194,16 @@ export function EmailsBrowser({ items }: { items: EmailItem[] }) {
 
   return (
     <>
+      {/* On phones: search and the view switch share a row, then the two dropdowns split the next. */}
       <div className="flex flex-wrap items-center gap-2">
-        <InputGroup className="w-full sm:w-64">
+        <InputGroup className="min-w-0 flex-1 sm:w-64 sm:flex-none">
           <InputGroupAddon>
             <SearchIcon />
           </InputGroupAddon>
           <InputGroupInput aria-label="Search emails" placeholder="Search by name or subject" value={query} onChange={(event) => setQuery(event.target.value)} />
         </InputGroup>
-        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="w-44" />
-        <SimpleSelect label="Status" items={STATUS_FILTERS} value={status} onChange={setStatus} className="w-48" />
+        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="w-[calc(50%-0.25rem)] max-sm:order-1 sm:w-44" />
+        <SimpleSelect label="Status" items={STATUS_FILTERS} value={status} onChange={setStatus} className="w-[calc(50%-0.25rem)] max-sm:order-1 sm:w-48" />
         <ToggleGroup
           variant="outline"
           aria-label="View"

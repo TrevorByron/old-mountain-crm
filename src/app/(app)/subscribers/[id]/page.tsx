@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react"
+import { ArrowLeftIcon, MailIcon, PhoneIcon } from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { z } from "zod"
@@ -147,6 +147,24 @@ export default async function PersonPage({ params }: PageProps<"/subscribers/[id
         Last contact: {lastContactLabel(lastTouch.data?.last_touch ?? null, today)}
         {" · "}On your list since {formatDate(person.subscribed_at)}
       </p>
+
+      {/* Phones get big tap targets to reach them, like a contact card. */}
+      {(person.email || person.phone) && (
+        <div className="grid auto-cols-fr grid-flow-col gap-2 md:hidden">
+          {person.email && (
+            <Button variant="outline" render={<a href={`mailto:${person.email}`} />} nativeButton={false}>
+              <MailIcon data-icon="inline-start" />
+              Email
+            </Button>
+          )}
+          {person.phone && (
+            <Button variant="outline" render={<a href={`tel:${person.phone}`} />} nativeButton={false}>
+              <PhoneIcon data-icon="inline-start" />
+              Call
+            </Button>
+          )}
+        </div>
+      )}
 
       {followUp !== "none" && followUp !== "upcoming" && (
         <Alert>

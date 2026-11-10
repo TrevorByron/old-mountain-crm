@@ -95,7 +95,7 @@ function StageColumn({ stage, plans, today }: { stage: (typeof STAGES)[number]; 
     <section
       ref={setNodeRef}
       aria-label={stage.label}
-      className={`flex min-h-24 min-w-0 flex-col gap-2 rounded-lg border p-2 ${isOver ? "bg-accent" : "bg-muted/40"}`}
+      className={`flex min-h-24 min-w-0 snap-start flex-col gap-2 rounded-lg border p-2 ${isOver ? "bg-accent" : "bg-muted/40"}`}
     >
       <h2 className="flex items-center justify-between px-1 text-sm font-medium">
         {stage.label}
@@ -178,14 +178,14 @@ export function PipelineBoard({ plans, trips, today }: { plans: PlanRow[]; trips
       <div className="flex flex-wrap items-center gap-2">
         <SimpleSelect
           label="Filter by trip"
-          className="w-48"
+          className="w-[calc(50%-0.25rem)] sm:w-48"
           items={[{ value: ALL, label: "All trips" }, ...trips, { value: NONE, label: "Trip not decided" }]}
           value={tripFilter}
           onChange={setTripFilter}
         />
         <SimpleSelect
           label="Filter by owner"
-          className="w-40"
+          className="w-[calc(50%-0.25rem)] sm:w-40"
           items={[
             { value: ALL, label: "All owners" },
             ...OWNERS.map((name) => ({ value: name, label: name })),
@@ -201,7 +201,8 @@ export function PipelineBoard({ plans, trips, today }: { plans: PlanRow[]; trips
       </div>
 
       <DndContext id="pipeline-board" sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3 pb-4">
+        {/* Phones swipe between stages one column at a time, with the next one peeking in. */}
+        <div className="-mx-4 grid snap-x snap-mandatory scroll-px-4 auto-cols-[85%] grid-flow-col gap-3 overflow-x-auto px-4 pb-4 sm:mx-0 sm:snap-none sm:grid-flow-row sm:grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] sm:overflow-visible sm:px-0">
           {stages.map((stage) => (
             <StageColumn key={stage.key} stage={stage} plans={visible.filter((plan) => plan.stage === stage.key)} today={today} />
           ))}

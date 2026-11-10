@@ -34,19 +34,43 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
+export type NavItem = { href: string; label: string; icon: LucideIcon; also?: string[] }
+
 // `also` lists other pages that belong under the same item, like Segments under Audience.
-const NAV_GROUPS: { label: string | null; items: { href: string; label: string; icon: LucideIcon; also?: string[] }[] }[] = [
-  {
-    label: null,
-    items: [
-      { href: "/today", label: "Today", icon: SunIcon },
-      { href: "/subscribers", label: "Audience", icon: UsersIcon, also: ["/segments"] },
-      { href: "/pipeline", label: "Pipeline", icon: KanbanIcon },
-      { href: "/trips", label: "Trips", icon: MapIcon },
-      { href: "/broadcasts", label: "Emails", icon: SendIcon },
-    ],
-  },
+export const NAV_ITEMS: NavItem[] = [
+  { href: "/today", label: "Today", icon: SunIcon },
+  { href: "/subscribers", label: "Audience", icon: UsersIcon, also: ["/segments"] },
+  { href: "/pipeline", label: "Pipeline", icon: KanbanIcon },
+  { href: "/trips", label: "Trips", icon: MapIcon },
+  { href: "/broadcasts", label: "Emails", icon: SendIcon },
 ]
+
+const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [{ label: null, items: NAV_ITEMS }]
+
+export function isNavItemActive(item: NavItem, pathname: string) {
+  return [item.href, ...(item.also ?? [])].some((href) => pathname.startsWith(href))
+}
+
+// Shared by the sidebar's Settings button and the phone header's settings button.
+export function SettingsMenuItems({ email }: { email: string }) {
+  return (
+    <>
+      <DropdownMenuItem render={<Link href="/sync" />}>
+        <RefreshCwIcon />
+        Airtable sync
+      </DropdownMenuItem>
+      <DropdownMenuItem render={<Link href="/team" />}>
+        <UsersRoundIcon />
+        Team
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={() => signOut()}>
+        <LogOutIcon />
+        Sign out {email}
+      </DropdownMenuItem>
+    </>
+  )
+}
 
 export function AppSidebar({ email, attentionCount }: { email: string; attentionCount: number }) {
   const pathname = usePathname()
@@ -74,7 +98,7 @@ export function AppSidebar({ email, attentionCount }: { email: string; attention
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       tooltip={item.label}
-                      isActive={[item.href, ...(item.also ?? [])].some((href) => pathname.startsWith(href))}
+                      isActive={isNavItemActive(item, pathname)}
                       render={<Link href={item.href} />}
                     >
                       <item.icon />
@@ -97,19 +121,7 @@ export function AppSidebar({ email, attentionCount }: { email: string; attention
                 <span className="truncate">Settings</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="start" className="w-56">
-                <DropdownMenuItem render={<Link href="/sync" />}>
-                  <RefreshCwIcon />
-                  Airtable sync
-                </DropdownMenuItem>
-                <DropdownMenuItem render={<Link href="/team" />}>
-                  <UsersRoundIcon />
-                  Team
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut()}>
-                  <LogOutIcon />
-                  Sign out {email}
-                </DropdownMenuItem>
+                <SettingsMenuItems email={email} />
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>

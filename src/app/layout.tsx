@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Roboto } from "next/font/google";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -15,6 +15,13 @@ const font = Roboto({
 export const metadata: Metadata = {
   title: "Old Mountain CRM",
   description: "Manage subscribers, broadcasts and email journeys.",
+  appleWebApp: { title: "Old Mountain", statusBarStyle: "default" },
+};
+
+// Lets the page reach under the notch and home bar; the header and tab bar pad for them.
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: "#fcfbf8",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -108,7 +108,8 @@ function daysFromNow(days: number) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[6.5rem_1fr] items-center gap-2 text-sm">
+    // Phones stack the label over the field so the field gets the full width.
+    <div className="grid items-center gap-x-2 text-sm max-sm:gap-0.5 sm:grid-cols-[6.5rem_1fr]">
       <span className="text-muted-foreground">{label}</span>
       <div className="min-w-0">{children}</div>
     </div>

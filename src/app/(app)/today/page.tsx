@@ -126,12 +126,13 @@ export default async function TodayPage() {
                   <TableBody>
                     {review.map((person) => (
                       <TableRow key={person.id} className="relative">
-                        <TableCell className="font-medium">
+                        <TableCell className="py-3 font-medium whitespace-normal">
                           <Link href={`/subscribers/${person.id}`} className="underline-offset-4 after:absolute after:inset-0 hover:underline">
                             {person.name}
                           </Link>
+                          <p className="font-normal text-muted-foreground sm:hidden">{person.reasons.join(", ")}</p>
                         </TableCell>
-                        <TableCell className="whitespace-normal text-muted-foreground">{person.reasons.join(", ")}</TableCell>
+                        <TableCell className="hidden whitespace-normal text-muted-foreground sm:table-cell">{person.reasons.join(", ")}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

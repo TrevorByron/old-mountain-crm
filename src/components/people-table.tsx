@@ -120,20 +120,22 @@ export function PeopleTable({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* On phones the title and the page's buttons come first, then search, then the filters in one row. */}
       <div className="flex flex-wrap items-center gap-2">
         {title && <div className="mr-auto min-w-0">{title}</div>}
-        <InputGroup className="w-full sm:w-44">
+        <InputGroup className="w-full max-sm:order-1 sm:w-44">
           <InputGroupAddon>
             <SearchIcon />
           </InputGroupAddon>
           <InputGroupInput aria-label="Search people" placeholder="Search" value={search} onChange={(event) => resetPage(setSearch)(event.target.value)} />
         </InputGroup>
-        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="w-36" />
-        <SimpleSelect label="Status" items={STATUS_ITEMS} value={status} onChange={resetPage(setStatus)} className="w-36" />
+        <SimpleSelect label="Sort" items={SORTS} value={sort} onChange={setSort} className="max-sm:order-1 sm:w-36" />
+        <SimpleSelect label="Status" items={STATUS_ITEMS} value={status} onChange={resetPage(setStatus)} className="min-w-0 flex-1 max-sm:order-1 sm:w-36 sm:flex-none" />
         <Popover>
-          <PopoverTrigger render={<Button variant="outline" />}>
+          <PopoverTrigger render={<Button variant="outline" aria-label="Filter" className="max-sm:order-1" />}>
             <ListFilterIcon data-icon="inline-start" />
-            Filter{filterCount > 0 && ` (${filterCount})`}
+            <span className="max-sm:hidden">Filter</span>
+            {filterCount > 0 && ` (${filterCount})`}
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72">
             <FieldGroup>
@@ -148,7 +150,7 @@ export function PeopleTable({
             </FieldGroup>
           </PopoverContent>
         </Popover>
-        {actions}
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
 
       {people.length === 0 ? (
@@ -166,7 +168,7 @@ export function PeopleTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Subscriber</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead className="hidden sm:table-cell">Status</TableHead>
                 <TableHead className="hidden md:table-cell">Last engagement</TableHead>
                 <TableHead className="hidden text-right lg:table-cell">Segments</TableHead>
                 {membership && <TableHead className="w-24 text-right">{membership.header}</TableHead>}
@@ -189,13 +191,21 @@ export function PeopleTable({
                   const personStatus = emailStatus(person)
                   return (
                     <TableRow key={person.id} className="relative">
-                      <TableCell className="py-3 whitespace-normal">
-                        <Link href={`/subscribers/${person.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
+                      {/* On phones this column takes the spare width and long emails trim to one line. */}
+                      <TableCell className="py-3 whitespace-normal max-sm:w-full max-sm:max-w-0">
+                        <Link
+                          href={`/subscribers/${person.id}`}
+                          className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline max-sm:block max-sm:truncate"
+                        >
                           {person.email ?? (name || "No name")}
                         </Link>
-                        {person.email && name && <p className="text-sm text-muted-foreground">{name}</p>}
+                        {person.email && name && <p className="text-sm text-muted-foreground max-sm:truncate">{name}</p>}
+                        {/* Phones have no room for the Status column, so the badge sits under the name. */}
+                        <div className="mt-1 sm:hidden">
+                          <Badge variant={STATUS_VARIANTS[personStatus] ?? "outline"}>{EMAIL_STATUS_LABELS[personStatus]}</Badge>
+                        </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <Badge variant={STATUS_VARIANTS[personStatus] ?? "outline"}>{EMAIL_STATUS_LABELS[personStatus]}</Badge>
                       </TableCell>
                       <TableCell className="hidden text-muted-foreground md:table-cell">
