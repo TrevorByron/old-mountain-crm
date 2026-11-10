@@ -87,7 +87,7 @@ export default async function TripsPage() {
                 {trips.map((trip) => (
                   <TableRow key={trip.id} className="relative">
                     <TableCell className="whitespace-normal">
-                      <Link href={`/trips/${trip.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
+                      <Link href={`/trips/${trip.id}`} className="font-medium after:absolute after:inset-0">
                         {trip.name}
                       </Link>{" "}
                       {trip.kind === "custom" && <Badge variant="outline">Custom</Badge>}{" "}

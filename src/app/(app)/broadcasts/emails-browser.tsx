@@ -155,7 +155,7 @@ function EmailTable({ items }: { items: EmailItem[] }) {
               return (
                 <TableRow key={item.id} className="relative">
                   <TableCell className="whitespace-normal">
-                    <Link href={`/broadcasts/${item.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
+                    <Link href={`/broadcasts/${item.id}`} className="font-medium after:absolute after:inset-0">
                       {item.name}
                     </Link>
                     {item.subject && <p className="text-muted-foreground">{item.subject}</p>}

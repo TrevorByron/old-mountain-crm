@@ -30,7 +30,7 @@ function AttentionRow({ item }: { item: AttentionItem }) {
         <Icon className={`mt-0.5 size-4 ${className}`} />
       </TableCell>
       <TableCell className="whitespace-normal">
-        <Link href={item.href} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
+        <Link href={item.href} className="font-medium after:absolute after:inset-0">
           {item.name}
         </Link>
         <p className="text-muted-foreground">{item.message}</p>
@@ -127,7 +127,7 @@ export default async function TodayPage() {
                     {review.map((person) => (
                       <TableRow key={person.id} className="relative">
                         <TableCell className="py-3 font-medium whitespace-normal">
-                          <Link href={`/subscribers/${person.id}`} className="underline-offset-4 after:absolute after:inset-0 hover:underline">
+                          <Link href={`/subscribers/${person.id}`} className="after:absolute after:inset-0">
                             {person.name}
                           </Link>
                           <p className="font-normal text-muted-foreground sm:hidden">{person.reasons.join(", ")}</p>
@@ -155,7 +155,7 @@ export default async function TodayPage() {
               <ul className="flex flex-col gap-3 text-sm">
                 {(trips ?? []).map((trip) => (
                   <li key={trip.id} className="relative">
-                    <Link href={`/trips/${trip.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
+                    <Link href={`/trips/${trip.id}`} className="font-medium after:absolute after:inset-0">
                       {trip.name}
                     </Link>
                     <p className="text-muted-foreground">{formatDate(trip.starts_on)}</p>

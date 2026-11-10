@@ -200,7 +200,7 @@ export function PeopleTable({
                   return (
                     <TableRow key={person.id} className="relative">
                       <TableCell className="h-[4.5rem]">
-                        <Link href={`/subscribers/${person.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
+                        <Link href={`/subscribers/${person.id}`} className="font-medium after:absolute after:inset-0">
                           {person.email ?? (name || "No name")}
                         </Link>
                         {person.email && name && <p className="text-xs text-muted-foreground">{name}</p>}

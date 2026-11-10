@@ -81,7 +81,7 @@ function SegmentTable({ items }: { items: SegmentItem[] }) {
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <span className="size-3 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: segmentColorHex(item.color) }} />
-                    <Link href={`/segments/${item.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
+                    <Link href={`/segments/${item.id}`} className="font-medium after:absolute after:inset-0">
                       {item.name}
                     </Link>
                   </div>
