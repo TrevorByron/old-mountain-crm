@@ -2,20 +2,22 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon } from "lucide-react"
+import { ChevronLeftIcon, ListFilterIcon, XIcon } from "lucide-react"
 import { useEffect, useRef, useState, useTransition } from "react"
-
-import { ManageMenu } from "@/components/manage-menu"
 import { toast } from "sonner"
 
+import { ManageMenu } from "@/components/manage-menu"
+import { PeopleTable } from "@/components/people-table"
 import { MultiSelect, type MultiSelectOption } from "@/components/multi-select"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Spinner } from "@/components/ui/spinner"
+import type { Person } from "@/lib/people/load"
 import {
   JOURNEY_RULES,
   RULE_FIELDS,
@@ -28,19 +30,7 @@ import {
 
 import { NewBroadcastDialog, type TemplateOption } from "../../broadcasts/new-broadcast-dialog"
 import { addToSegment, countRuleMatches, deleteSegment, removeFromSegment, saveSegment } from "../actions"
-
-export type SegmentPerson = {
-  id: string
-  first_name: string | null
-  last_name: string | null
-  email: string | null
-  status: string | null
-  interests: string[]
-  departure_window: string | null
-  unsubscribed_at: string | null
-  suppressed: boolean
-  marketing_ok: boolean
-}
+import { SegmentColorButton } from "../segment-color-picker"
 
 const fieldsFor = (...keys: string[]) => RULE_FIELDS.filter((field) => keys.includes(field.key))
 
@@ -59,10 +49,53 @@ function usedInGroup(group: (typeof RULE_GROUPS)[number], rules: SegmentRules) {
   )
 }
 
+const personLabel = (person: Person) => [person.first_name, person.last_name].filter(Boolean).join(" ") || person.email || "them"
+
+function AddPeopleDialog({ id, candidates }: { id: string; candidates: MultiSelectOption[] }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [toAdd, setToAdd] = useState<string[]>([])
+  const [isPending, startTransition] = useTransition()
+
+  function add() {
+    startTransition(async () => {
+      const result = await addToSegment({ segmentId: id, subscriberIds: toAdd })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(`Added ${toAdd.length} ${toAdd.length === 1 ? "person" : "people"}`)
+      setToAdd([])
+      setOpen(false)
+      router.refresh()
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button />}>Add people</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add people to this segment</DialogTitle>
+          <DialogDescription>They stay in it whatever the rules say, until you take them out.</DialogDescription>
+        </DialogHeader>
+        <MultiSelect options={candidates} value={toAdd} onChange={setToAdd} placeholder="Search by name or email" />
+        <DialogFooter>
+          <Button onClick={add} disabled={toAdd.length === 0 || isPending}>
+            {isPending && <Spinner data-icon="inline-start" />}
+            Add {toAdd.length > 0 ? toAdd.length : ""} to segment
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function SegmentEditor({
   id,
   name: savedName,
   description: savedDescription,
+  color: savedColor,
   rules: savedRules,
   options,
   journeyOptions,
@@ -74,11 +107,12 @@ export function SegmentEditor({
   id: string
   name: string
   description: string | null
+  color: string
   rules: SegmentRules
   options: RuleOptions
   journeyOptions: Record<JourneyRuleKey, MultiSelectOption[]>
   templates: TemplateOption[]
-  people: SegmentPerson[]
+  people: Person[]
   addedByHand: string[]
   everyone: MultiSelectOption[]
 }) {
@@ -87,7 +121,6 @@ export function SegmentEditor({
   const [description, setDescription] = useState(savedDescription ?? "")
   const [rules, setRules] = useState(savedRules)
   const [keywords, setKeywords] = useState(savedRules.keywords.join(", "))
-  const [toAdd, setToAdd] = useState<string[]>([])
   const [matchCount, setMatchCount] = useState<number | null>(null)
   const [isPending, startTransition] = useTransition()
   const [openGroups] = useState(() => [
@@ -96,10 +129,10 @@ export function SegmentEditor({
   ])
 
   const added = new Set(addedByHand)
-  const reachable = people.filter((person) => person.email && person.marketing_ok && !person.unsubscribed_at && !person.suppressed).length
   const inSegment = new Set(people.map((person) => person.id))
   const currentRules = { ...rules, keywords: parseKeywords(keywords) }
   const rulesKey = JSON.stringify(currentRules)
+  const ruleCount = RULE_GROUPS.reduce((sum, group) => sum + usedInGroup(group, currentRules), 0)
 
   useEffect(() => {
     let current = true
@@ -127,18 +160,6 @@ export function SegmentEditor({
     return () => clearTimeout(timer)
   }, [draftKey, id, name, router])
 
-  function addPeople() {
-    startTransition(async () => {
-      const result = await addToSegment({ segmentId: id, subscriberIds: toAdd })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      setToAdd([])
-      router.refresh()
-    })
-  }
-
   function remove(subscriberId: string) {
     startTransition(async () => {
       const result = await removeFromSegment({ segmentId: id, subscriberIds: [subscriberId] })
@@ -147,195 +168,168 @@ export function SegmentEditor({
     })
   }
 
+  const rulesPanel = (
+    <Sheet>
+      <SheetTrigger render={<Button variant="outline" />}>
+        <ListFilterIcon data-icon="inline-start" />
+        Rules{ruleCount > 0 && ` (${ruleCount})`}
+      </SheetTrigger>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Who&apos;s in it</SheetTitle>
+          <SheetDescription>
+            {matchCount === null ? "Choose what people need to match." : `${matchCount} ${matchCount === 1 ? "person matches" : "people match"}.`}{" "}
+            Any choice within a field counts, and every field you use has to match. Changes save as you go.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="px-4 pb-4">
+          <Accordion multiple defaultValue={openGroups}>
+            {RULE_GROUPS.map((group) => (
+              <AccordionItem key={group.key} value={group.key}>
+                <AccordionTrigger>
+                  {group.label}
+                  {usedInGroup(group, currentRules) > 0 && ` (${usedInGroup(group, currentRules)})`}
+                </AccordionTrigger>
+                <AccordionContent>
+                  <FieldGroup className="gap-3 pb-2">
+                    {group.journey.map((field) => (
+                      <Field key={field.key}>
+                        <FieldLabel htmlFor={`rule-${field.key}`}>{field.label}</FieldLabel>
+                        <MultiSelect
+                          id={`rule-${field.key}`}
+                          options={journeyOptions[field.key]}
+                          value={rules[field.key]}
+                          onChange={(value) => setRules({ ...rules, [field.key]: value })}
+                          placeholder="Any"
+                        />
+                      </Field>
+                    ))}
+                    {group.fields.map((field) => (
+                      <Field key={field.key}>
+                        <FieldLabel htmlFor={`rule-${field.key}`}>{field.label}</FieldLabel>
+                        <MultiSelect
+                          id={`rule-${field.key}`}
+                          options={options[field.key].map((value) => ({ label: value, value }))}
+                          value={rules[field.key]}
+                          onChange={(value) => setRules({ ...rules, [field.key]: value })}
+                          placeholder="Any"
+                          emptyMessage="Nobody has an answer here yet."
+                        />
+                      </Field>
+                    ))}
+                    {group.key === "notes" && (
+                      <Field>
+                        <FieldLabel htmlFor="rule-keywords">Words in their answers or your notes</FieldLabel>
+                        <Input id="rule-keywords" value={keywords} placeholder="family, kids" onChange={(event) => setKeywords(event.target.value)} />
+                        <FieldDescription>Separate with commas.</FieldDescription>
+                      </Field>
+                    )}
+                  </FieldGroup>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+
+  const title = (
+    <div className="flex items-start gap-3">
+      <SegmentColorButton id={id} color={savedColor} className="mt-1.5" />
+      <div className="flex min-w-56 flex-col">
+        <Input
+          aria-label="Segment name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          className="h-11 border-transparent bg-transparent px-1 font-heading text-2xl font-semibold shadow-none hover:border-input md:text-2xl"
+        />
+        <Input
+          aria-label="Description"
+          placeholder="Add a description"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          className="h-7 border-transparent bg-transparent px-1 text-sm text-muted-foreground shadow-none hover:border-input"
+        />
+      </div>
+    </div>
+  )
+
+  const actions = (
+    <>
+      {rulesPanel}
+      <ManageMenu
+        label="Manage this segment"
+        actions={[
+          {
+            label: "Reset rules",
+            title: "Clear this segment's rules?",
+            description: "Removes every rule. People you added by hand stay in it.",
+            success: "Rules cleared",
+            run: async () => {
+              setRules(segmentRulesSchema.parse({}))
+              setKeywords("")
+              return { ok: true }
+            },
+          },
+          {
+            label: "Remove segment",
+            title: `Remove ${savedName}?`,
+            description: "Nobody is unsubscribed or removed from Airtable. Scheduled emails using this segment will skip it.",
+            destructive: true,
+            success: "Segment removed",
+            redirectTo: "/segments",
+            run: () => deleteSegment(id),
+          },
+        ]}
+      />
+      <NewBroadcastDialog templates={templates} segmentId={id} label="Email this segment" variant="outline" />
+      <AddPeopleDialog id={id} candidates={everyone.filter((person) => !inSegment.has(person.value))} />
+    </>
+  )
+
   return (
     <>
-      <div className="flex flex-wrap items-start gap-2">
-        <Button variant="ghost" size="icon-sm" aria-label="Back to segments" render={<Link href="/segments" />} nativeButton={false}>
-          <ArrowLeftIcon />
-        </Button>
-        <div className="flex min-w-64 flex-1 flex-col gap-1">
-          <Input
-            aria-label="Segment name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="h-9 border-transparent bg-transparent px-1 font-heading text-lg font-semibold shadow-none hover:border-input"
-          />
-          <Input
-            aria-label="Description"
-            placeholder="Add a description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            className="h-7 border-transparent bg-transparent px-1 text-sm shadow-none hover:border-input"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <NewBroadcastDialog templates={templates} segmentId={id} label="Email this segment" />
-          <ManageMenu
-            label="Manage this segment"
-            actions={[
-              {
-                label: "Reset rules",
-                title: "Clear this segment's rules?",
-                description: "Removes every rule. People you added by hand stay in it.",
-                success: "Rules cleared",
-                run: async () => {
-                  setRules(segmentRulesSchema.parse({}))
-                  setKeywords("")
-                  return { ok: true }
-                },
-              },
-              {
-                label: "Remove segment",
-                title: `Remove ${savedName}?`,
-                description: "Nobody is unsubscribed or removed from Airtable. Scheduled campaigns using this segment will skip it.",
-                destructive: true,
-                success: "Segment removed",
-                redirectTo: "/segments",
-                run: () => deleteSegment(id),
-              },
-            ]}
-          />
-        </div>
-      </div>
+      <Button variant="ghost" size="sm" className="-ml-2 self-start" render={<Link href="/segments" />} nativeButton={false}>
+        <ChevronLeftIcon data-icon="inline-start" />
+        All segments
+      </Button>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Who&apos;s in it</CardTitle>
-            <CardDescription>
-              {matchCount === null ? "Choose what people need to match." : `${matchCount} ${matchCount === 1 ? "person matches" : "people match"}.`}{" "}
-              Any choice within a field counts, and every field you use has to match.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Accordion multiple defaultValue={openGroups}>
-              {RULE_GROUPS.map((group) => (
-                <AccordionItem key={group.key} value={group.key}>
-                  <AccordionTrigger>
-                    {group.label}
-                    {usedInGroup(group, currentRules) > 0 && ` (${usedInGroup(group, currentRules)})`}
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <FieldGroup className="gap-3 pb-2">
-                      {group.journey.map((field) => (
-                        <Field key={field.key}>
-                          <FieldLabel htmlFor={`rule-${field.key}`}>{field.label}</FieldLabel>
-                          <MultiSelect
-                            id={`rule-${field.key}`}
-                            options={journeyOptions[field.key]}
-                            value={rules[field.key]}
-                            onChange={(value) => setRules({ ...rules, [field.key]: value })}
-                            placeholder="Any"
-                          />
-                        </Field>
-                      ))}
-                      {group.fields.map((field) => (
-                        <Field key={field.key}>
-                          <FieldLabel htmlFor={`rule-${field.key}`}>{field.label}</FieldLabel>
-                          <MultiSelect
-                            id={`rule-${field.key}`}
-                            options={options[field.key].map((value) => ({ label: value, value }))}
-                            value={rules[field.key]}
-                            onChange={(value) => setRules({ ...rules, [field.key]: value })}
-                            placeholder="Any"
-                            emptyMessage="Nobody has an answer here yet."
-                          />
-                        </Field>
-                      ))}
-                      {group.key === "notes" && (
-                        <Field>
-                          <FieldLabel htmlFor="rule-keywords">Words in their answers or your notes</FieldLabel>
-                          <Input
-                            id="rule-keywords"
-                            value={keywords}
-                            placeholder="family, kids"
-                            onChange={(event) => setKeywords(event.target.value)}
-                          />
-                          <FieldDescription>Separate with commas.</FieldDescription>
-                        </Field>
-                      )}
-                    </FieldGroup>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-col gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Add people by hand</CardTitle>
-              <CardDescription>
-                For people the rules can&apos;t catch. You can also select people on the People page.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              <MultiSelect
-                options={everyone.filter((person) => !inSegment.has(person.value))}
-                value={toAdd}
-                onChange={setToAdd}
-                placeholder="Search by name"
-              />
-              <div>
-                <Button variant="secondary" onClick={addPeople} disabled={toAdd.length === 0 || isPending}>
-                  Add to segment
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {people.length} {people.length === 1 ? "person" : "people"}
-              </CardTitle>
-              <CardDescription>{reachable} can be emailed. This list follows your rules as you change them.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {people.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nobody yet. Add a rule or add someone by hand.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>How</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {people.map((person) => (
-                      <TableRow key={person.id}>
-                        <TableCell className="whitespace-normal">
-                          <div>
-                            <Link href={`/subscribers/${person.id}`} className="underline-offset-4 hover:underline">
-                              {[person.first_name, person.last_name].filter(Boolean).join(" ") || person.email || "No name"}
-                            </Link>
-                          </div>
-                          {(!person.email || !person.marketing_ok || person.unsubscribed_at || person.suppressed) && (
-                            <Badge variant="outline">Won&apos;t receive email</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {added.has(person.id) ? "By hand" : "Rules"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {added.has(person.id) && (
-                            <Button variant="ghost" size="sm" onClick={() => remove(person.id)} disabled={isPending}>
-                              Remove
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <PeopleTable
+        people={people}
+        title={title}
+        actions={actions}
+        empty={
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyTitle>This segment is empty</EmptyTitle>
+              <EmptyDescription>Add people by hand, or set rules so it fills itself.</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent className="flex-row justify-center">
+              {rulesPanel}
+              <AddPeopleDialog id={id} candidates={everyone} />
+            </EmptyContent>
+          </Empty>
+        }
+        membership={{
+          header: "How",
+          cell: (person) =>
+            added.has(person.id) ? (
+              <Button
+                variant="ghost"
+                size="xs"
+                aria-label={`Take ${personLabel(person)} out of this segment`}
+                onClick={() => remove(person.id)}
+                disabled={isPending}
+              >
+                By hand
+                <XIcon data-icon="inline-end" />
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">Rules</span>
+            ),
+        }}
+      />
     </>
   )
 }

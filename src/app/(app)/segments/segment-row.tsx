@@ -27,7 +27,7 @@ export function SegmentRowMenu({ id, name }: { id: string; name: string }) {
         {
           label: "Remove segment",
           title: `Remove ${name}?`,
-          description: "Nobody is unsubscribed or removed from Airtable. Scheduled campaigns using this segment will skip it.",
+          description: "Nobody is unsubscribed or removed from Airtable. Scheduled emails using this segment will skip it.",
           destructive: true,
           success: "Segment removed",
           run: () => deleteSegment(id),

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { requireTeamMember } from "@/lib/auth"
+import { sendTimelineEntries } from "@/lib/broadcasts/results"
 import { companions, followUpState, lastContactLabel, tripInterestSummary } from "@/lib/people/profile"
 import {
   PLAN_COLUMNS,
@@ -81,7 +82,7 @@ export default async function PersonPage({ params }: PageProps<"/subscribers/[id
       supabase.from("activities").select("id, kind, body, meta, author, occurred_at").eq("subscriber_id", id),
       supabase.from("activities").select("id, kind, body, meta, author, occurred_at, trip_plan_id").in("trip_plan_id", planIds),
       supabase.from("subscriber_status_history").select("id, from_status, to_status, changed_by, changed_at").eq("subscriber_id", id),
-      supabase.from("sends").select("id, subject, sent_at, broadcast_id").eq("subscriber_id", id).not("sent_at", "is", null),
+      supabase.from("sends").select("id, subject, sent_at, broadcast_id, email_events (id, type, link_url, occurred_at, is_probable_bot)").eq("subscriber_id", id).not("sent_at", "is", null),
     ])
   for (const result of [lifecycle, lastTouch, planResult, trips, statuses, savedSegments, ownNotes, planActivity, statusHistory, sends]) {
     if (result.error) throw new Error(result.error.message)
@@ -127,6 +128,7 @@ export default async function PersonPage({ params }: PageProps<"/subscribers/[id
       author: null,
       href: row.broadcast_id ? `/broadcasts/${row.broadcast_id}` : undefined,
     })),
+    ...(sends.data ?? []).flatMap((row) => sendTimelineEntries(row)),
   ])
 
   const hasSignupAnswers = Boolean(tripSummary) || person.interests.length > 0 || person.objections.length > 0 || Boolean(person.interests_other) || Boolean(person.objections_other)

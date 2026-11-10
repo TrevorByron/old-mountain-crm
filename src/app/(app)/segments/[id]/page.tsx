@@ -4,8 +4,9 @@ import { z } from "zod"
 import { requireTeamMember } from "@/lib/auth"
 import { LIFECYCLES, STAGES } from "@/lib/pipeline/stages"
 import { RULE_COLUMNS, ruleOptions, segmentRulesSchema } from "@/lib/segments/rules"
+import { loadPeople } from "@/lib/people/load"
 
-import { SegmentEditor, type SegmentPerson } from "./segment-editor"
+import { SegmentEditor } from "./segment-editor"
 
 export const metadata = { title: "Segment" }
 
@@ -19,7 +20,7 @@ export default async function SegmentPage({ params }: PageProps<"/segments/[id]"
 
   const { data: segment, error } = await supabase
     .from("segments")
-    .select("id, name, description, rules")
+    .select("id, name, description, rules, color")
     .eq("id", id)
     .maybeSingle()
   if (error) throw new Error(error.message)
@@ -37,18 +38,20 @@ export default async function SegmentPage({ params }: PageProps<"/segments/[id]"
     if (data.length < PAGE_SIZE) break
   }
 
-  const people: SegmentPerson[] = []
+  const members: { id: string }[] = []
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error: pageError } = await supabase
       .rpc("segment_subscribers", { target: id })
-      .select("id, first_name, last_name, email, status, interests, departure_window, unsubscribed_at, suppressed, marketing_ok")
-      .order("email")
+      .select("id")
+      .order("id")
       .range(from, from + PAGE_SIZE - 1)
     if (pageError) throw new Error(pageError.message)
-    const page = data as unknown as SegmentPerson[]
-    people.push(...page)
+    const page = data as unknown as { id: string }[]
+    members.push(...page)
     if (page.length < PAGE_SIZE) break
   }
+  const memberIds = new Set(members.map((member) => member.id))
+  const { people: allPeople } = await loadPeople(supabase)
 
   const { data: added, error: addedError } = await supabase
     .from("segment_members")
@@ -78,9 +81,10 @@ export default async function SegmentPage({ params }: PageProps<"/segments/[id]"
       id={id}
       name={segment.name}
       description={segment.description}
+      color={segment.color}
       rules={segmentRulesSchema.parse(segment.rules)}
       options={ruleOptions(everyone, statuses.map((status) => status.value))}
-      people={people}
+      people={allPeople.filter((person) => memberIds.has(person.id))}
       addedByHand={added.map((row) => row.subscriber_id)}
       everyone={everyone.map((person) => ({
         value: person.id,

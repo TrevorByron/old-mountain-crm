@@ -41,7 +41,7 @@ export async function createBroadcast(input: unknown) {
   const { data, error } = await supabase
     .from("broadcasts")
     .insert({
-      name: "Untitled campaign",
+      name: "Untitled email",
       template_id: template.id,
       audience_filter: audienceFilterSchema.parse(parsed.data.segmentId ? { segment_ids: [parsed.data.segmentId] } : {}),
       created_by: member.id,
@@ -342,7 +342,7 @@ export async function deleteBroadcast(id: string) {
 
 // Back to what the template started with. Only drafts, because a sent email is a record.
 export async function resetBroadcast(id: string) {
-  if (!idSchema.safeParse(id).success) return { ok: false as const, error: "Couldn't find that campaign." }
+  if (!idSchema.safeParse(id).success) return { ok: false as const, error: "Couldn't find that email." }
 
   const { supabase } = await requireTeamMember()
   const { data: broadcast, error: readError } = await supabase
@@ -350,7 +350,7 @@ export async function resetBroadcast(id: string) {
     .select("state, templates (layout_key, content)")
     .eq("id", id)
     .single()
-  if (readError) return { ok: false as const, error: "Couldn't find that campaign." }
+  if (readError) return { ok: false as const, error: "Couldn't find that email." }
   if (broadcast.state !== "draft") return { ok: false as const, error: "Only drafts can be reset." }
   const template = broadcast.templates as unknown as { layout_key: string; content: unknown } | null
 

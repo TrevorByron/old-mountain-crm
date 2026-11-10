@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -17,35 +18,28 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
+import { DEFAULT_SEGMENT_COLOR, type SegmentColor } from "@/lib/segments/colors"
 
 import { createSegment } from "./actions"
+import { SegmentColorPicker } from "./segment-color-picker"
 
-const STARTERS = [
-  { name: "Past guests", description: "Everyone who's traveled with you", rules: { lifecycles: ["past_guest"] } },
-  { name: "In conversation", description: "Anyone with an open trip plan who hasn't committed", rules: { lifecycles: ["prospect"] } },
-  { name: "Booked guests", description: "Committed to an upcoming trip", rules: { lifecycles: ["customer"] } },
-  { name: "Not this time", description: "People who passed, worth trying again", rules: { plan_stages: ["not_this_time"] } },
+const STARTERS: { name: string; rules: Record<string, string[]> }[] = [
+  { name: "Past guests", rules: { lifecycles: ["past_guest"] } },
+  { name: "In conversation", rules: { lifecycles: ["prospect"] } },
+  { name: "Booked guests", rules: { lifecycles: ["customer"] } },
+  { name: "Not this time", rules: { plan_stages: ["not_this_time"] } },
 ]
 
-export function NewSegmentDialog() {
+// Name it and pick a color. Who's in it is chosen on the segment's own page, next.
+function NewSegmentForm() {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [name, setName] = useState("")
+  const [color, setColor] = useState<SegmentColor>(DEFAULT_SEGMENT_COLOR)
   const [isPending, startTransition] = useTransition()
 
-  function startFrom(starter: (typeof STARTERS)[number]) {
+  function create(input: { name: string; rules?: Record<string, string[]> }) {
     startTransition(async () => {
-      const result = await createSegment(starter)
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      router.push(`/segments/${result.id}`)
-    })
-  }
-
-  function create(formData: FormData) {
-    startTransition(async () => {
-      const result = await createSegment({ name: formData.get("name"), description: formData.get("description") })
+      const result = await createSegment({ ...input, color })
       if (!result.ok) {
         toast.error(result.error)
         return
@@ -55,45 +49,54 @@ export function NewSegmentDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        create({ name })
+      }}
+    >
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="segment-name">Name</FieldLabel>
+          <Input id="segment-name" placeholder="Interested in a 2027 safari" value={name} onChange={(event) => setName(event.target.value)} autoFocus />
+        </Field>
+        <Field>
+          <FieldLabel>Color</FieldLabel>
+          <SegmentColorPicker value={color} onChange={setColor} disabled={isPending} />
+        </Field>
+        <Field>
+          <FieldLabel>Or start from a common one</FieldLabel>
+          <div className="flex flex-wrap gap-2">
+            {STARTERS.map((starter) => (
+              <Button key={starter.name} type="button" variant="outline" size="sm" disabled={isPending} onClick={() => create(starter)}>
+                {starter.name}
+              </Button>
+            ))}
+          </div>
+        </Field>
+      </FieldGroup>
+      <DialogFooter>
+        <DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose>
+        <Button type="submit" disabled={isPending || !name.trim()}>
+          {isPending && <Spinner data-icon="inline-start" />}
+          Save
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+export function NewSegmentDialog() {
+  return (
+    <Dialog>
       <DialogTrigger render={<Button />}>New segment</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New segment</DialogTitle>
-          <DialogDescription>Start with a common one, or name your own and choose who belongs next.</DialogDescription>
+          <DialogTitle>Create a new segment</DialogTitle>
+          <DialogDescription>Next you&apos;ll choose who&apos;s in it, by rules or by adding people.</DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-2">
-          {STARTERS.map((starter) => (
-            <Button
-              key={starter.name}
-              variant="outline"
-              className="h-auto flex-col items-start gap-0.5 py-2 text-left whitespace-normal"
-              disabled={isPending}
-              onClick={() => startFrom(starter)}
-            >
-              <span className="font-medium">{starter.name}</span>
-              <span className="text-xs font-normal text-muted-foreground">{starter.description}</span>
-            </Button>
-          ))}
-        </div>
-        <form action={create} className="flex flex-col gap-4">
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="segment-name">Name</FieldLabel>
-              <Input id="segment-name" name="name" placeholder="Interested in a 2027 safari" required />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="segment-description">Description (optional)</FieldLabel>
-              <Input id="segment-description" name="description" placeholder="Anyone who picked a 2027 departure" />
-            </Field>
-          </FieldGroup>
-          <DialogFooter>
-            <Button type="submit" disabled={isPending}>
-              {isPending && <Spinner data-icon="inline-start" />}
-              Create segment
-            </Button>
-          </DialogFooter>
-        </form>
+        <NewSegmentForm />
       </DialogContent>
     </Dialog>
   )

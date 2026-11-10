@@ -5,10 +5,12 @@ import { requireTeamMember } from "@/lib/auth"
 import { emailContentSchema } from "@/lib/broadcasts/blocks"
 import { sendBlockers } from "@/lib/broadcasts/compose"
 import { audienceFilterSchema, starterContent } from "@/lib/broadcasts/content"
+import type { ResultSend } from "@/lib/broadcasts/results"
 
 import { BroadcastEditor } from "./broadcast-editor"
+import { CampaignResults } from "./campaign-results"
 
-export const metadata = { title: "Campaign" }
+export const metadata = { title: "Email" }
 
 const PAGE_SIZE = 1000
 
@@ -50,6 +52,23 @@ export default async function BroadcastPage({ params }: PageProps<"/broadcasts/[
     if (data.length < PAGE_SIZE) break
   }
 
+  const results: ResultSend[] = []
+  if (broadcast.state !== "draft") {
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error: resultsError } = await supabase
+        .from("sends")
+        .select(
+          "id, sent_at, subscribers (id, first_name, last_name, email, unsubscribed_at), email_events (type, link_url, occurred_at, is_probable_bot)"
+        )
+        .eq("broadcast_id", id)
+        .order("id")
+        .range(from, from + PAGE_SIZE - 1)
+      if (resultsError) throw new Error(resultsError.message)
+      results.push(...(data as unknown as ResultSend[]))
+      if (data.length < PAGE_SIZE) break
+    }
+  }
+
   // Drafts started before blocks existed have no content yet, so they begin from their template.
   const template = broadcast.templates as unknown as { layout_key: string } | null
   const content = broadcast.content
@@ -67,6 +86,7 @@ export default async function BroadcastPage({ params }: PageProps<"/broadcasts/[
       totalCount={total.count ?? 0}
       testBlockers={sendBlockers(process.env, { realRecipients: false })}
       sendBlockers={sendBlockers(process.env, { realRecipients: true })}
+      results={results.some((send) => send.sent_at) ? <CampaignResults sends={results} /> : undefined}
     />
   )
 }

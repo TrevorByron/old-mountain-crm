@@ -23,11 +23,13 @@ export type TemplateOption = { id: string; name: string; layout_key: string }
 export function NewBroadcastDialog({
   templates,
   segmentId = null,
-  label = "New campaign",
+  label = "New email",
+  variant = "default",
 }: {
   templates: TemplateOption[]
   segmentId?: string | null
   label?: string
+  variant?: "default" | "outline"
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -66,7 +68,7 @@ export function NewBroadcastDialog({
 
   return (
     <Dialog>
-      <DialogTrigger render={<Button />}>{label}</DialogTrigger>
+      <DialogTrigger render={<Button variant={variant} />}>{label}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Start from a template</DialogTitle>

@@ -62,7 +62,7 @@ export async function removeMember(id: string) {
 
   const { error } = await supabase.from("team_members").delete().eq("id", id)
   if (error) {
-    return { ok: false as const, error: error.code === "23503" ? "They've created campaigns, so they can't be removed yet." : "Couldn't remove them." }
+    return { ok: false as const, error: error.code === "23503" ? "They've created emails, so they can't be removed yet." : "Couldn't remove them." }
   }
   revalidatePath("/team")
   return { ok: true as const }

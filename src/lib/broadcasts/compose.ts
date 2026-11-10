@@ -75,8 +75,9 @@ async function renderBoth(content: EmailContent, preheader: string | null, foote
   return { html: await render(element), text: await render(element, { plainText: true }) }
 }
 
-// For the editor. The footer shows what's missing rather than hiding it.
-export async function previewHtml(content: EmailContent, preheader: string | null, env: Env = process.env) {
+// For the editor and the email list. The footer shows what's missing rather than hiding it.
+// Editing mode outlines empty blocks so they can be clicked, which a thumbnail doesn't want.
+export async function previewHtml(content: EmailContent, preheader: string | null, env: Env = process.env, { editing = true } = {}) {
   const { html } = await renderBoth(
     content,
     preheader,
@@ -86,7 +87,7 @@ export async function previewHtml(content: EmailContent, preheader: string | nul
       unsubscribeUrl: `${env.APP_URL ?? ""}/unsubscribe`,
       appUrl: env.APP_URL ?? "",
     },
-    true
+    editing
   )
   return applyMergeTags(html, null, { html: true })
 }

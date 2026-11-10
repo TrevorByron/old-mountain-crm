@@ -4,13 +4,15 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { requireTeamMember } from "@/lib/auth"
+import { SEGMENT_COLOR_KEYS } from "@/lib/segments/colors"
 import { segmentRulesSchema } from "@/lib/segments/rules"
 
 const nameSchema = z.string().trim().min(1, "Give the segment a name.").max(120)
 const descriptionSchema = z.string().trim().max(500).optional()
 const DUPLICATE_NAME = "A segment with that name already exists."
 
-const createSchema = z.object({ name: nameSchema, description: descriptionSchema, rules: segmentRulesSchema.optional() })
+const colorSchema = z.enum(SEGMENT_COLOR_KEYS)
+const createSchema = z.object({ name: nameSchema, description: descriptionSchema, rules: segmentRulesSchema.optional(), color: colorSchema.optional() })
 
 export async function createSegment(input: unknown) {
   const parsed = createSchema.safeParse(input)
@@ -23,6 +25,7 @@ export async function createSegment(input: unknown) {
       name: parsed.data.name,
       description: parsed.data.description || null,
       rules: parsed.data.rules ?? {},
+      ...(parsed.data.color ? { color: parsed.data.color } : {}),
       created_by: member.id,
     })
     .select("id")
@@ -56,6 +59,21 @@ export async function saveSegment(input: unknown) {
   }
   revalidatePath("/segments")
   revalidatePath(`/segments/${id}`)
+  return { ok: true as const }
+}
+
+export async function updateSegmentColor(input: unknown) {
+  const parsed = z.object({ id: z.uuid(), color: colorSchema }).safeParse(input)
+  if (!parsed.success) return { ok: false as const, error: "Choose one of the colors." }
+
+  const { supabase } = await requireTeamMember()
+  const { error } = await supabase
+    .from("segments")
+    .update({ color: parsed.data.color, updated_at: new Date().toISOString() })
+    .eq("id", parsed.data.id)
+  if (error) return { ok: false as const, error: "Couldn't change the color." }
+  revalidatePath("/segments")
+  revalidatePath(`/segments/${parsed.data.id}`)
   return { ok: true as const }
 }
 

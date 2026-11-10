@@ -1,72 +1,36 @@
-import { PageHeader } from "@/components/page-header"
+import { AudienceHeader, AudienceTabs } from "@/components/audience-header"
+import { PeopleTable } from "@/components/people-table"
 import { requireTeamMember } from "@/lib/auth"
+import { loadPeople } from "@/lib/people/load"
 
 import { AddPersonDialog } from "./add-person-dialog"
-import { SubscriberTable, type Subscriber } from "./subscriber-table"
 
-export const metadata = { title: "People" }
+export const metadata = { title: "Audience" }
 
-const PAGE_SIZE = 1000
+// Customers have booked or traveled with you, going by the furthest stage any of their trip plans reached.
+const CUSTOMER_LIFECYCLES = ["customer", "past_guest"]
 
-export default async function SubscribersPage() {
+export default async function SubscribersPage({ searchParams }: PageProps<"/subscribers">) {
+  const { show } = await searchParams
+  const customersOnly = show === "customers"
   const { supabase } = await requireTeamMember()
 
-  const rows: Omit<Subscriber, "lifecycle" | "last_touch">[] = []
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("subscribers")
-      .select(
-        "id, email, first_name, last_name, status, source, country, segments, subscribed_at, unsubscribed_at, suppressed, suppressed_reason, phone, account_owner, trip_type, departure_window, group_size, interests, interests_other, objections, objections_other, tags, about, marketing_ok, airtable_record_id"
-      )
-      .order("subscribed_at", { ascending: false })
-      .order("id")
-      .range(from, from + PAGE_SIZE - 1)
-    if (error) throw new Error(error.message)
-    rows.push(...data)
-    if (data.length < PAGE_SIZE) break
-  }
-
-  const lifecycles = new Map<string, string>()
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("contact_lifecycle")
-      .select("subscriber_id, lifecycle")
-      .order("subscriber_id")
-      .range(from, from + PAGE_SIZE - 1)
-    if (error) throw new Error(error.message)
-    data.forEach((row) => lifecycles.set(row.subscriber_id, row.lifecycle))
-    if (data.length < PAGE_SIZE) break
-  }
-
-  const lastTouches = new Map<string, string>()
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("contact_last_touch")
-      .select("subscriber_id, last_touch")
-      .order("subscriber_id")
-      .range(from, from + PAGE_SIZE - 1)
-    if (error) throw new Error(error.message)
-    data.forEach((row) => lastTouches.set(row.subscriber_id, row.last_touch))
-    if (data.length < PAGE_SIZE) break
-  }
-
-  const subscribers: Subscriber[] = rows.map((row) => ({
-    ...row,
-    lifecycle: lifecycles.get(row.id) ?? "subscriber",
-    last_touch: lastTouches.get(row.id) ?? null,
-  }))
-
-  const { data: segments, error: segmentsError } = await supabase.from("segments").select("id, name").order("name")
-  if (segmentsError) throw new Error(segmentsError.message)
+  const { people: everyone } = await loadPeople(supabase)
+  const people = customersOnly ? everyone.filter((person) => CUSTOMER_LIFECYCLES.includes(person.lifecycle)) : everyone
 
   return (
     <>
-      <PageHeader title="People" description="Everyone you know: on your list, in conversation, or back from a safari.">
-        <AddPersonDialog />
-      </PageHeader>
-      <SubscriberTable
-        subscribers={subscribers}
-        segments={segments}
+      <AudienceHeader
+        active={customersOnly ? "customers" : "subscribers"}
+        description={customersOnly ? "People who've booked or traveled with you." : "Everyone you know: on your list, in conversation, or back from a safari."}
+        tabs={false}
+      />
+      <PeopleTable
+        key={customersOnly ? "customers" : "everyone"}
+        people={people}
+        lifecycles={customersOnly ? CUSTOMER_LIFECYCLES : undefined}
+        title={<AudienceTabs active={customersOnly ? "customers" : "subscribers"} />}
+        actions={<AddPersonDialog />}
       />
     </>
   )

@@ -151,7 +151,7 @@ function StateNotice({
         <AlertTitle>Sent to {sentCount} people</AlertTitle>
         <AlertDescription>
           {broadcast.sent_at && `Finished ${dateTimeFormat.format(new Date(broadcast.sent_at))}. `}
-          Sent campaigns can&apos;t be edited.
+          Sent emails can&apos;t be edited.
         </AlertDescription>
       </Alert>
     )
@@ -229,7 +229,7 @@ function SaveTemplateDialog({ content }: { content: EmailContent }) {
         toast.error(result.error)
         return
       }
-      toast.success("Saved. It's now an option when you start a new campaign.")
+      toast.success("Saved. It's now an option when you start a new email.")
       setOpen(false)
     })
   }
@@ -240,7 +240,7 @@ function SaveTemplateDialog({ content }: { content: EmailContent }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Save as a template</DialogTitle>
-          <DialogDescription>Keep these blocks to start future campaigns from. The subject and audience aren&apos;t included.</DialogDescription>
+          <DialogDescription>Keep these blocks to start future emails from. The subject and audience aren&apos;t included.</DialogDescription>
         </DialogHeader>
         <form action={save} className="flex flex-col gap-4">
           <Field>
@@ -268,6 +268,7 @@ export function BroadcastEditor({
   totalCount,
   testBlockers,
   sendBlockers,
+  results,
 }: {
   broadcast: Broadcast
   statuses: string[]
@@ -277,6 +278,8 @@ export function BroadcastEditor({
   totalCount: number
   testBlockers: string[]
   sendBlockers: string[]
+  // Shown under the header once the campaign has gone out.
+  results?: React.ReactNode
 }) {
   const router = useRouter()
   const isMobile = useIsMobile()
@@ -401,7 +404,7 @@ export function BroadcastEditor({
   const persist = async () => {
     const result = await saveBroadcast({
       id: broadcast.id,
-      name: name.trim() || "Untitled campaign",
+      name: name.trim() || "Untitled email",
       subject,
       preheader,
       content,
@@ -485,7 +488,7 @@ export function BroadcastEditor({
         toast.error(result.error)
         return
       }
-      toast.success(scheduledAt ? "Campaign scheduled" : "Campaign is sending")
+      toast.success(scheduledAt ? "Email scheduled" : "Email is sending")
       router.refresh()
     })
   }
@@ -868,13 +871,13 @@ export function BroadcastEditor({
   return (
     <>
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon-sm" aria-label="Back to campaigns" render={<Link href="/broadcasts" />} nativeButton={false}>
+        <Button variant="ghost" size="icon-sm" aria-label="Back to emails" render={<Link href="/broadcasts" />} nativeButton={false}>
           <ArrowLeftIcon />
         </Button>
         <Input
           aria-label="Internal name, only your team sees this"
           value={name}
-          placeholder="Untitled campaign"
+          placeholder="Untitled email"
           disabled={readOnly}
           onChange={(event) => setName(event.target.value)}
           className="h-9 max-w-md min-w-0 flex-1 border-transparent bg-transparent font-heading text-lg font-semibold shadow-none hover:border-input"
@@ -919,6 +922,7 @@ export function BroadcastEditor({
           />
         </div>
       </div>
+      {results}
       {isMobile ? (
         <Tabs value={mobileView} onValueChange={setMobileView}>
           <TabsList>

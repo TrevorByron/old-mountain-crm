@@ -1,16 +1,13 @@
-import Link from "next/link"
 import { ListFilterIcon } from "lucide-react"
 
-import { PageHeader } from "@/components/page-header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AudienceHeader } from "@/components/audience-header"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { requireTeamMember } from "@/lib/auth"
 import { LIFECYCLES, STAGES } from "@/lib/pipeline/stages"
 import { describeRules, segmentRulesSchema } from "@/lib/segments/rules"
 
 import { NewSegmentDialog } from "./new-segment-dialog"
-import { SegmentRowDescription, SegmentRowMenu } from "./segment-row"
+import { SegmentsBrowser, type SegmentItem } from "./segments-browser"
 
 export const metadata = { title: "Segments" }
 
@@ -19,7 +16,7 @@ export default async function SegmentsPage() {
 
   const { data: segments, error } = await supabase
     .from("segments")
-    .select("id, name, description, rules")
+    .select("id, name, description, rules, color, updated_at")
     .order("name")
   if (error) throw new Error(error.message)
 
@@ -38,15 +35,24 @@ export default async function SegmentsPage() {
         .select("id")
         .limit(1)
       if (countError) throw new Error(countError.message)
-      return { ...segment, people: count ?? 0, rulesText: describeRules(segmentRulesSchema.parse(segment.rules), names) }
+      return {
+        id: segment.id,
+        name: segment.name,
+        description: segment.description,
+        rules: segment.rules,
+        color: segment.color,
+        updatedAt: segment.updated_at,
+        people: count ?? 0,
+        rulesText: describeRules(segmentRulesSchema.parse(segment.rules), names),
+      } satisfies SegmentItem
     })
   )
 
   return (
     <>
-      <PageHeader title="Segments" description="Groups you can email. They update on their own.">
+      <AudienceHeader active="segments" description="Groups you can email. They update on their own.">
         <NewSegmentDialog />
-      </PageHeader>
+      </AudienceHeader>
       {rows.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
@@ -63,42 +69,7 @@ export default async function SegmentsPage() {
           </EmptyContent>
         </Empty>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>All segments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="hidden md:table-cell">Who&apos;s in it</TableHead>
-                  <TableHead className="text-right">People</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((segment) => (
-                  <TableRow key={segment.id} className="relative">
-                    <TableCell>
-                      <Link href={`/segments/${segment.id}`} className="font-medium underline-offset-4 after:absolute after:inset-0 hover:underline">
-                        {segment.name}
-                      </Link>
-                      <SegmentRowDescription id={segment.id} name={segment.name} description={segment.description} rules={segment.rules} />
-                    </TableCell>
-                    <TableCell className="hidden whitespace-normal text-muted-foreground md:table-cell">
-                      {segment.rulesText || "Added by hand"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{segment.people}</TableCell>
-                    <TableCell className="w-10 text-right">
-                      <SegmentRowMenu id={segment.id} name={segment.name} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <SegmentsBrowser items={rows} />
       )}
     </>
   )

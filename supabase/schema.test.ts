@@ -184,3 +184,43 @@ describe("row-level security", () => {
     )
   })
 })
+
+describe("campaign engagement", () => {
+  async function campaignWithSends(count: number) {
+    const { rows: members } = await db.query<{ id: string }>(`insert into team_members (email) values ('t@example.com') returning id`)
+    const { rows: broadcasts } = await db.query<{ id: string }>(
+      `insert into broadcasts (name, created_by) values ('News', $1) returning id`,
+      [members[0].id]
+    )
+    const sends: string[] = []
+    for (let i = 0; i < count; i += 1) {
+      const { rows: people } = await db.query<{ id: string }>(`insert into subscribers (email) values ($1) returning id`, [`p${i}@example.com`])
+      const { rows } = await db.query<{ id: string }>(
+        `insert into sends (subscriber_id, broadcast_id, idempotency_key, resend_message_id, sent_at) values ($1, $2, $3, $4, now()) returning id`,
+        [people[0].id, broadcasts[0].id, `k${i}`, `msg_${i}`]
+      )
+      sends.push(rows[0].id)
+    }
+    return { broadcastId: broadcasts[0].id, sends }
+  }
+
+  const event = (sendId: string, type: string, bot = false) =>
+    db.query(`insert into email_events (send_id, type, occurred_at, is_probable_bot) values ($1, $2, now(), $3)`, [sendId, type, bot])
+
+  it("counts people, treats a click as an open and leaves out likely bots", async () => {
+    const { broadcastId, sends } = await campaignWithSends(3)
+    for (const id of sends) await event(id, "delivered")
+    await event(sends[0], "opened")
+    await event(sends[0], "opened")
+    await event(sends[1], "clicked")
+    await event(sends[2], "clicked", true)
+
+    const { rows } = await db.query(`select delivered, opened, clicked, bounced from campaign_engagement() where broadcast_id = $1`, [broadcastId])
+    expect(rows).toEqual([{ delivered: 3, opened: 2, clicked: 1, bounced: 0 }])
+  })
+
+  it("won't let two sends share a Resend message id", async () => {
+    const { sends } = await campaignWithSends(2)
+    await expect(db.query(`update sends set resend_message_id = 'msg_0' where id = $1`, [sends[1]])).rejects.toThrow(/duplicate key/)
+  })
+})

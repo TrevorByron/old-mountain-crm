@@ -4,7 +4,7 @@ A self-hosted replacement for Flodesk, for Old Mountain Tours & Explorations: su
 
 UI is shadcn/ui components only. Add them with the CLI rather than building your own.
 
-In place: login, Airtable sync, the subscriber table, saved segments, unsubscribe, signup, and broadcasts. Tracking and journeys come next.
+In place: login, Airtable sync, the subscriber table, saved segments, unsubscribe, signup, broadcasts and email tracking. Journeys come next.
 
 ## Local setup
 
@@ -116,6 +116,22 @@ To run sends locally, set `INNGEST_DEV=1` and run:
 ```bash
 npx inngest-cli@latest dev
 ```
+
+### Tracking
+
+Resend reports what happens to each email to `POST /api/webhooks/resend`, which checks the signature with `RESEND_WEBHOOK_SECRET` and records each event in `email_events`. The rules live in `src/lib/broadcasts/events.ts` and `webhook.ts`.
+
+- **Results** show on a sent campaign's page and, as open and click rates, on the campaign list. They count people, not events, and a click counts as an open. A person's opens, clicks, bounces and spam reports appear in their timeline.
+- **Opens are an estimate.** Apple Mail and others load images without the person reading, and some inboxes block them. Opens or clicks within 5 seconds of sending are marked as likely bots and left out.
+- **A permanent bounce or a spam report stops email to that person** by setting `suppressed`, and Airtable's opt-out field is updated. A temporary bounce is recorded but doesn't stop anything.
+- **Repeats are harmless.** Resend retries and resends events, and each delivery id is stored once.
+- **Test sends aren't tracked**, since they have no send row. Their events are dropped after 10 minutes of retries.
+
+Setup in Resend:
+
+1. Under Domains, turn on open and click tracking for `mail.old-mountain.com`, with a tracking subdomain such as `links`. Add the CNAME it shows at Squarespace.
+2. Under Webhooks, add `APP_URL/api/webhooks/resend` with the `email.delivered`, `email.opened`, `email.clicked`, `email.bounced`, `email.complained` and `email.suppressed` events.
+3. Put its signing secret in `RESEND_WEBHOOK_SECRET` on Vercel and redeploy.
 
 ### Email builder
 

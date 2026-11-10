@@ -5,7 +5,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   KanbanIcon,
-  ListFilterIcon,
   LogOutIcon,
   SettingsIcon,
   MapIcon,
@@ -14,6 +13,7 @@ import {
   SunIcon,
   UsersIcon,
   UsersRoundIcon,
+  type LucideIcon,
 } from "lucide-react"
 
 import { signOut } from "@/app/login/actions"
@@ -34,16 +34,16 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-const NAV_GROUPS = [
+// `also` lists other pages that belong under the same item, like Segments under Audience.
+const NAV_GROUPS: { label: string | null; items: { href: string; label: string; icon: LucideIcon; also?: string[] }[] }[] = [
   {
     label: null,
     items: [
       { href: "/today", label: "Today", icon: SunIcon },
-      { href: "/subscribers", label: "People", icon: UsersIcon },
+      { href: "/subscribers", label: "Audience", icon: UsersIcon, also: ["/segments"] },
       { href: "/pipeline", label: "Pipeline", icon: KanbanIcon },
       { href: "/trips", label: "Trips", icon: MapIcon },
-      { href: "/segments", label: "Segments", icon: ListFilterIcon },
-      { href: "/broadcasts", label: "Campaigns", icon: SendIcon },
+      { href: "/broadcasts", label: "Emails", icon: SendIcon },
     ],
   },
 ]
@@ -74,7 +74,7 @@ export function AppSidebar({ email, attentionCount }: { email: string; attention
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       tooltip={item.label}
-                      isActive={pathname.startsWith(item.href)}
+                      isActive={[item.href, ...(item.also ?? [])].some((href) => pathname.startsWith(href))}
                       render={<Link href={item.href} />}
                     >
                       <item.icon />
