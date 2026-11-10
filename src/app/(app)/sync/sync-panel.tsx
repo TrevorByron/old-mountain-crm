@@ -212,19 +212,19 @@ export function SyncPanel({ runs }: { runs: SyncRun[] }) {
                 <TableRow>
                   <TableHead>Started</TableHead>
                   <TableHead>Result</TableHead>
-                  <TableHead className="text-right">Added</TableHead>
-                  <TableHead className="text-right">Updated</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Added</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Updated</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {runs.map((run) => (
                   <TableRow key={run.id}>
-                    <TableCell>{dateTimeFormat.format(new Date(run.started_at))}</TableCell>
+                    <TableCell className="whitespace-normal">{dateTimeFormat.format(new Date(run.started_at))}</TableCell>
                     <TableCell>
                       <RunStatus run={run} />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{run.created_count ?? "-"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.updated_count ?? "-"}</TableCell>
+                    <TableCell className="hidden text-right tabular-nums sm:table-cell">{run.created_count ?? "-"}</TableCell>
+                    <TableCell className="hidden text-right tabular-nums sm:table-cell">{run.updated_count ?? "-"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

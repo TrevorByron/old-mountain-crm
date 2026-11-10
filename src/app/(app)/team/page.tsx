@@ -33,7 +33,7 @@ export default async function TeamPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead className="hidden sm:table-cell">Email</TableHead>
                 <TableHead className="hidden md:table-cell">Invited</TableHead>
                 <TableHead className="hidden md:table-cell">Last sign-in</TableHead>
                 <TableHead />
@@ -42,10 +42,12 @@ export default async function TeamPage() {
             <TableBody>
               {members.map((member) => (
                 <TableRow key={member.id}>
-                  <TableCell>
+                  {/* Phones show the email under the name instead of in its own column. */}
+                  <TableCell className="max-sm:w-full max-sm:max-w-0">
                     <MemberName id={member.id} name={member.name} />
+                    <p className="truncate px-2 text-sm text-muted-foreground sm:hidden">{member.email}</p>
                   </TableCell>
-                  <TableCell>{member.email}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{member.email}</TableCell>
                   <TableCell className="hidden md:table-cell">{dateFormat.format(new Date(member.invited_at))}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {member.last_login_at ? dateFormat.format(new Date(member.last_login_at)) : "Not yet"}

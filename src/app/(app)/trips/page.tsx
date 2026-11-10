@@ -77,9 +77,9 @@ export default async function TripsPage() {
                 <TableRow>
                   <TableHead>Trip</TableHead>
                   <TableHead className="hidden md:table-cell">Dates</TableHead>
-                  <TableHead>Seats taken</TableHead>
+                  <TableHead className="hidden sm:table-cell">Seats taken</TableHead>
                   <TableHead className="hidden sm:table-cell">In talks</TableHead>
-                  <TableHead className="text-right">Collected</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">Collected</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -92,18 +92,23 @@ export default async function TripsPage() {
                       </Link>{" "}
                       {trip.kind === "custom" && <Badge variant="outline">Custom</Badge>}{" "}
                       {trip.archived && <Badge variant="outline">Archived</Badge>}
+                      {/* Phones show the numbers as one line here instead of in their own columns. */}
+                      <p className="text-sm text-muted-foreground tabular-nums sm:hidden">
+                        {trip.taken}
+                        {trip.seats ? ` of ${trip.seats}` : ""} seats · {formatMoney(trip.collected)} collected
+                      </p>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <TripRowDates trip={trip} />
                     </TableCell>
-                    <TableCell className="tabular-nums">
+                    <TableCell className="hidden tabular-nums sm:table-cell">
                       <div className="flex items-center gap-1">
                         {trip.taken} of
                         <TripRowSeats trip={trip} />
                       </div>
                     </TableCell>
                     <TableCell className="hidden tabular-nums sm:table-cell">{trip.talking}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMoney(trip.collected)}</TableCell>
+                    <TableCell className="hidden text-right tabular-nums sm:table-cell">{formatMoney(trip.collected)}</TableCell>
                     <TableCell className="w-10 text-right">
                       <TripMenu trip={trip} />
                     </TableCell>

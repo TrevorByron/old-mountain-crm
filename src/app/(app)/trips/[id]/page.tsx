@@ -32,7 +32,7 @@ function PlanRows({ title, plans, repeated, today }: { title: string; plans: Pla
       </TableRow>
       {plans.map((plan) => (
         <TableRow key={plan.id}>
-          <TableCell className="min-w-44 whitespace-normal">
+          <TableCell className="whitespace-normal max-sm:w-full sm:min-w-44">
             <Link href={`/pipeline/${plan.id}`} className="font-medium underline-offset-4 hover:underline">
               {planTitle(plan)}
             </Link>
@@ -42,14 +42,19 @@ function PlanRows({ title, plans, repeated, today }: { title: string; plans: Pla
               </Badge>
             )}
             <NextStepField plan={plan} />
+            {/* Phones have no room for the Stage and Payment columns, so they sit under the name. */}
+            <div className="mt-2 flex flex-wrap items-center gap-2 sm:hidden">
+              <StageSelect plan={{ id: plan.id, stage: plan.stage }} />
+              <PaymentDialog plan={plan} name={planTitle(plan)} today={today} />
+            </div>
           </TableCell>
-          <TableCell>
+          <TableCell className="hidden sm:table-cell">
             <StageSelect plan={{ id: plan.id, stage: plan.stage }} />
           </TableCell>
-          <TableCell>
+          <TableCell className="hidden sm:table-cell">
             <PaymentDialog plan={plan} name={planTitle(plan)} today={today} />
           </TableCell>
-          <TableCell>
+          <TableCell className="hidden sm:table-cell">
             <NextMoveButtons compact name={planTitle(plan)} plan={plan} trips={[]} today={today} />
           </TableCell>
           <TableCell className="w-10 text-right">
@@ -172,9 +177,9 @@ export default async function TripPage({ params }: PageProps<"/trips/[id]">) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Who</TableHead>
-                    <TableHead>Stage</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>Next</TableHead>
+                    <TableHead className="hidden sm:table-cell">Stage</TableHead>
+                    <TableHead className="hidden sm:table-cell">Payment</TableHead>
+                    <TableHead className="hidden sm:table-cell">Next</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>

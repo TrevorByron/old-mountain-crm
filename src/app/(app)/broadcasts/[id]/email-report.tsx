@@ -86,7 +86,7 @@ function DeliveryGauge({ delivered, sent }: { delivered: number; sent: number })
       </CardHeader>
       <CardContent className="flex justify-center">
         <div className="relative h-32 w-64">
-          <ChartContainer config={config} className="h-64 w-64">
+          <ChartContainer config={config} className="size-52 sm:size-64">
             <RadialBarChart data={[{ value }]} cy="50%" innerRadius="78%" outerRadius="100%" startAngle={180} endAngle={0}>
               <PolarAngleAxis type="number" domain={[0, 100]} tick={false} axisLine={false} />
               <RadialBar dataKey="value" fill="var(--color-value)" background={{ fill: "var(--muted)" }} cornerRadius={4} isAnimationActive={false} />
@@ -197,7 +197,7 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={glanceConfig} className="aspect-auto h-64 w-full">
+            <ChartContainer config={glanceConfig} className="aspect-auto h-44 w-full sm:h-64">
               <BarChart data={glance} margin={{ top: 8, left: 8, right: 8, bottom: 8 }} barCategoryGap="30%">
                 <XAxis dataKey="stage" tickLine={false} axisLine={false} height={44} interval={0} tick={<GlanceTick data={glance} />} />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel={false} />} />
@@ -291,7 +291,7 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
                   <TableBody>
                     {recipients.map(({ send, status }) => (
                       <TableRow key={send.id}>
-                        <TableCell className="font-medium">
+                        <TableCell className="max-w-0 truncate font-medium">
                           {send.subscribers ? (
                             <Link href={`/subscribers/${send.subscribers.id}`} className="underline-offset-4 hover:underline">
                               {send.subscribers.email ?? personName(send.subscribers)}
@@ -300,7 +300,7 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
                             "Removed person"
                           )}
                         </TableCell>
-                        <TableCell className="w-40 text-right">
+                        <TableCell className="w-28 text-right sm:w-40">
                           <Badge variant={STATUS_VARIANTS[status] ?? "outline"}>{RECIPIENT_STATUS_LABELS[status]}</Badge>
                         </TableCell>
                       </TableRow>
@@ -322,7 +322,7 @@ export function EmailReport({ email, sends, html, totalCount }: { email: ReportE
               title={`What was sent in ${email.name}`}
               srcDoc={html}
               sandbox="allow-same-origin"
-              className="h-[48rem] w-full max-w-[640px] rounded-lg border bg-white"
+              className="h-[32rem] w-full max-w-[640px] rounded-lg border bg-white sm:h-[48rem]"
             />
           </CardContent>
         </Card>
