@@ -4,6 +4,7 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   CopyIcon,
+  GripVerticalIcon,
   ImageIcon,
   LayoutPanelLeftIcon,
   LinkIcon,
@@ -16,7 +17,7 @@ import {
   Trash2Icon,
   TypeIcon,
 } from "lucide-react"
-import type { ReactElement, ReactNode, Ref } from "react"
+import type { PointerEvent, ReactElement, ReactNode, Ref } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -381,15 +382,17 @@ const ADDABLE: BlockType[] = ["text", "image", "image_text", "button", "logo", "
 
 export function AddBlockMenu({
   onAdd,
+  onOpenChange,
   trigger,
   children,
 }: {
   onAdd: (type: BlockType) => void
+  onOpenChange?: (open: boolean) => void
   trigger: ReactElement
   children: ReactNode
 }) {
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger render={trigger}>{children}</DropdownMenuTrigger>
       <DropdownMenuContent className="w-72">
         {ADDABLE.map((type) => {
@@ -419,7 +422,7 @@ export function BlockBar({
   onMove,
   onDuplicate,
   onRemove,
-  onAdd,
+  onDragStart,
   onDone,
   editorVersion,
   formattingRef,
@@ -431,7 +434,7 @@ export function BlockBar({
   onMove: (delta: number) => void
   onDuplicate: () => void
   onRemove: () => void
-  onAdd: (type: BlockType) => void
+  onDragStart: (event: PointerEvent) => void
   onDone: () => void
   editorVersion: number
   formattingRef: Ref<HTMLDivElement>
@@ -447,7 +450,16 @@ export function BlockBar({
       className="mx-2 flex max-w-[calc(100%-1rem)] flex-col gap-1 rounded-xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10"
     >
       <div className="flex flex-wrap items-center gap-1">
-        <span className="flex items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground max-sm:hidden">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Drag to move this ${label.toLowerCase()} block`}
+          className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+          onPointerDown={onDragStart}
+        >
+          <GripVerticalIcon />
+        </Button>
+        <span className="flex items-center gap-1.5 px-1 text-xs font-medium text-muted-foreground max-sm:hidden">
           <Icon className="size-3.5" />
           {label}
         </span>
@@ -483,9 +495,6 @@ export function BlockBar({
           </PopoverContent>
         </Popover>
         <Separator orientation="vertical" className="mx-0.5 h-5 data-vertical:self-center" />
-        <AddBlockMenu onAdd={onAdd} trigger={<Button variant="ghost" size="icon-sm" aria-label="Add a block below" />}>
-          <PlusIcon />
-        </AddBlockMenu>
         <Button variant="ghost" size="icon-sm" aria-label="Move up" disabled={position === 0} onClick={() => onMove(-1)}>
           <ArrowUpIcon />
         </Button>

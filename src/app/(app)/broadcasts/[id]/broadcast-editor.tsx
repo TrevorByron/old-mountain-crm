@@ -70,7 +70,7 @@ import {
 } from "../actions"
 import { ManageMenu } from "@/components/manage-menu"
 import { AddBlockMenu, BlockBar } from "./block-editor"
-import { EmailPreview } from "./email-preview"
+import { EmailPreview, type EmailPreviewHandle } from "./email-preview"
 import { RichTextEditor } from "./rich-text-editor"
 
 type Broadcast = {
@@ -313,6 +313,7 @@ export function BroadcastEditor({
   const [scheduleTime, setScheduleTime] = useState("09:00")
   const [isPending, startTransition] = useTransition()
   const lastHistoryAt = useRef(0)
+  const previewRef = useRef<EmailPreviewHandle>(null)
   const { open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar()
   const sidebarWasOpen = useRef(sidebarOpen)
   const setSidebarOpenRef = useRef(setSidebarOpen)
@@ -578,6 +579,14 @@ export function BroadcastEditor({
     restructure(blocks)
   }
 
+  // Dropped above block `index`, or after the last one when `index` is the count.
+  function reorderBlock(id: string, index: number) {
+    const from = content.blocks.findIndex((block) => block.id === id)
+    if (from === -1) return
+    const to = index > from ? index - 1 : index
+    if (to !== from) moveBlock(from, to - from)
+  }
+
   function duplicateBlock(index: number) {
     const copy = { ...content.blocks[index], id: crypto.randomUUID() }
     restructure([...content.blocks.slice(0, index + 1), copy, ...content.blocks.slice(index + 1)])
@@ -655,10 +664,33 @@ export function BroadcastEditor({
       </Card>
 
       <EmailPreview
+        ref={previewRef}
         html={preview.html}
         selectedId={selectedId}
         onSelect={setSelectedId}
         onBlock={writeOnBlock}
+        onReorder={readOnly ? undefined : reorderBlock}
+        renderAdd={
+          readOnly
+            ? undefined
+            : (index, onOpenChange) => (
+                <AddBlockMenu
+                  onAdd={(type) => addBlock(type, index)}
+                  onOpenChange={onOpenChange}
+                  trigger={
+                    <Button
+                      variant="outline"
+                      size={content.blocks.length === 0 ? "default" : "icon-sm"}
+                      aria-label={content.blocks.length === 0 ? undefined : "Add a block here"}
+                      className="bg-card shadow-md"
+                    />
+                  }
+                >
+                  <PlusIcon data-icon={content.blocks.length === 0 ? "inline-start" : undefined} />
+                  {content.blocks.length === 0 && "Add a block"}
+                </AddBlockMenu>
+              )
+        }
         toolbar={
           selectedBlock && !readOnly ? (
             <BlockBar
@@ -671,21 +703,12 @@ export function BroadcastEditor({
               onMove={(delta) => moveBlock(selectedIndex, delta)}
               onDuplicate={() => duplicateBlock(selectedIndex)}
               onRemove={() => removeBlock(selectedBlock.id)}
-              onAdd={(type) => addBlock(type, selectedIndex + 1)}
+              onDragStart={(event) => previewRef.current?.startDrag(event)}
               onDone={() => setSelectedId(null)}
             />
           ) : undefined
         }
       />
-
-      {!readOnly && (
-        <div className="flex justify-center">
-          <AddBlockMenu onAdd={(type) => addBlock(type, content.blocks.length)} trigger={<Button variant="outline" />}>
-            <PlusIcon data-icon="inline-start" />
-            Add a block
-          </AddBlockMenu>
-        </div>
-      )}
 
       <Card size="sm">
         <CardHeader>
