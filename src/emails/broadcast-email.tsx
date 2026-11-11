@@ -29,9 +29,11 @@ export type EmailFooter = {
 }
 
 const WEBSITE_URL = "https://www.old-mountain.com"
-const PAGE_WIDTH = 600
+// A little wider than the usual 600, so desktop inboxes don't show a narrow strip. Phones
+// still shrink it to fit.
+const PAGE_WIDTH = 680
 const GUTTER = 32
-const COLUMN_WIDTH = 256
+const COLUMN_WIDTH = 296
 
 const logoAlt = { fontSize: "16px", fontWeight: 600, letterSpacing: "0.06em", lineHeight: "22px" }
 

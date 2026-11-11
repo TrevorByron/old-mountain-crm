@@ -627,7 +627,7 @@ export function BroadcastEditor({
       : undefined
 
   const designView = (
-    <div className="mx-auto flex w-full max-w-[42rem] flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[48rem] flex-col gap-4">
       <Card size="sm">
         <CardContent className="flex flex-col gap-1">
           <p className="text-xs text-muted-foreground">How it shows in the inbox</p>
@@ -1027,7 +1027,7 @@ export function BroadcastEditor({
           />
         </div>
       </div>
-      <div className="mx-auto w-full max-w-[42rem] empty:hidden">
+      <div className="mx-auto w-full max-w-[48rem] empty:hidden">
         <StateNotice
           broadcast={broadcast}
           sentCount={sentCount}
@@ -1039,7 +1039,7 @@ export function BroadcastEditor({
       </div>
       <TabsContent value="design">{designView}</TabsContent>
       <TabsContent value="send">
-        <div className="mx-auto w-full max-w-[42rem]">{sendTab}</div>
+        <div className="mx-auto w-full max-w-[48rem]">{sendTab}</div>
       </TabsContent>
     </Tabs>
   )

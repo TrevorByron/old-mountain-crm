@@ -223,8 +223,7 @@ export async function sendTest(id: string) {
   const email = await composeEmail(
     broadcast,
     { id: member.id, email: member.email, firstName: self?.first_name ?? member.name?.split(" ")[0] ?? null },
-    sendConfig(),
-    { subjectPrefix: "[Test] " }
+    sendConfig()
   )
   const { error } = await resendClient().emails.send(email)
   if (error) return { ok: false as const, error: `Resend: ${error.message}` }

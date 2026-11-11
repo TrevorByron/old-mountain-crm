@@ -98,8 +98,7 @@ export type ComposeInput = { subject: string | null; preheader: string | null; c
 export async function composeEmail(
   { subject, preheader, content }: ComposeInput,
   recipient: { id: string; email: string; firstName: string | null },
-  config: SendConfig,
-  { subjectPrefix = "" }: { subjectPrefix?: string } = {}
+  config: SendConfig
 ) {
   const token = createUnsubscribeToken(recipient.id, config.unsubscribeSecret)
   const { html, text } = await renderBoth(content, preheader, {
@@ -112,7 +111,7 @@ export async function composeEmail(
     from: config.from,
     to: [recipient.email],
     ...(config.replyTo ? { replyTo: config.replyTo } : {}),
-    subject: `${subjectPrefix}${applyMergeTags(subject ?? "", recipient.firstName, { html: false })}`,
+    subject: applyMergeTags(subject ?? "", recipient.firstName, { html: false }),
     html: applyMergeTags(html, recipient.firstName, { html: true }),
     text: applyMergeTags(text, recipient.firstName, { html: false }),
     headers: listUnsubscribeHeaders(recipient.id, config.unsubscribeSecret, config.appUrl),

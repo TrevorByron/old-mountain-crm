@@ -192,7 +192,7 @@ describe("photo blocks", () => {
 
   it("runs edge to edge when asked", async () => {
     const { html } = await compose(contentOf({ type: "image", src, bleed: true, spacing: "none" }))
-    expect(html).toContain('width="600"')
+    expect(html).toContain('width="680"')
     expect(html).toContain("padding:0px 0px")
   })
 
@@ -210,7 +210,7 @@ describe("photo blocks", () => {
   it("puts text beside a photo in columns that stack on phones", async () => {
     const { html } = await compose(contentOf({ type: "image_text", src, alt: "Camp", doc: emptyDoc("Beside it") }))
     expect(html).toContain("display:inline-block")
-    expect(html).toContain("max-width:256px")
+    expect(html).toContain("max-width:296px")
     expect(html.indexOf(src)).toBeLessThan(html.indexOf("Beside it"))
   })
 
@@ -320,9 +320,9 @@ describe("composeEmail", () => {
     expect(await compose(content)).toEqual(await compose(content))
   })
 
-  it("marks test sends in the subject", async () => {
-    const email = await composeEmail({ subject: "Two seats left", preheader: null, content: contentOf() }, RECIPIENT, CONFIG, { subjectPrefix: "[Test] " })
-    expect(email.subject).toBe("[Test] Two seats left")
+  it("sends tests with the real subject", async () => {
+    const email = await composeEmail({ subject: "Two seats left", preheader: null, content: contentOf() }, RECIPIENT, CONFIG)
+    expect(email.subject).toBe("Two seats left")
   })
 })
 

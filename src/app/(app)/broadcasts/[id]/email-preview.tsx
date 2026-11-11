@@ -25,7 +25,7 @@ const HIGHLIGHT_STYLE = `
   img { -webkit-user-drag: none; }
 `
 
-const DEVICE_WIDTHS = { desktop: 640, mobile: 375 }
+const DEVICE_WIDTHS = { desktop: 720, mobile: 375 }
 const TOOLBAR_ROOM = 140
 // How close the pointer has to be to the line between two blocks for its + to show.
 const GAP_REACH = 14

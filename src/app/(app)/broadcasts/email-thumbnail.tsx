@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 
-const EMAIL_WIDTH = 600
+const EMAIL_WIDTH = 680
 const HEIGHT = 352
 
 // The email at its real width, shrunk to fit the card. It can't be clicked or scrolled.
