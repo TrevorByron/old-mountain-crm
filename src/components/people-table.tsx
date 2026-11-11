@@ -202,7 +202,7 @@ export function PeopleTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-10 pr-3">
+                <TableHead className="w-10 min-w-10 [&:has([role=checkbox])]:pr-4">
                   <Checkbox
                     aria-label="Select everyone on this page"
                     checked={allVisibleSelected}
@@ -234,7 +234,7 @@ export function PeopleTable({
                   const personStatus = emailStatus(person)
                   return (
                     <TableRow key={person.id} className="relative" data-state={selectedIds.has(person.id) ? "selected" : undefined}>
-                      <TableCell className="relative z-10 w-10 pr-3">
+                      <TableCell className="relative z-10 w-10 min-w-10 [&:has([role=checkbox])]:pr-4">
                         <Checkbox
                           aria-label={`Select ${name || person.email || "this person"}`}
                           checked={selectedIds.has(person.id)}

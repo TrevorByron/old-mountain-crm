@@ -132,11 +132,4 @@
   html {
     @apply font-sans;
   }
-  /* Phones get everything 12.5% bigger, so the standard 2.25rem controls are about 40px tall and
-     easy to tap. Media queries stay in px, so the breakpoints don't move with it. */
-  @media (max-width: 767px) {
-    html {
-      font-size: 112.5%;
-    }
-  }
 }

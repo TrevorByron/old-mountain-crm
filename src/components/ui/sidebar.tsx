@@ -28,8 +28,8 @@ import { PanelLeftIcon } from "lucide-react"
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
-// Phones render rem 25% larger (see globals.css), so this stays about 300px wide.
-const SIDEBAR_WIDTH_MOBILE = "15rem"
+// The phone drawer is as wide as Flodesk's, the same as the desktop sidebar.
+const SIDEBAR_WIDTH_MOBILE = "16rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
