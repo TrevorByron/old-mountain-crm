@@ -91,6 +91,20 @@ const AUTOSAVE_MS = 1200
 const HISTORY_GROUP_MS = 800
 const HISTORY_LIMIT = 100
 const DELETED_TOAST = "block-deleted"
+// Clicks on these keep a block selected: the block, its toolbar, and anything the toolbar opens.
+const KEEPS_BLOCK_OPEN = [
+  "[role=toolbar]",
+  "[data-block-editing]",
+  "[data-slot=popover-content]",
+  "[data-slot=dropdown-menu-content]",
+  "[data-slot=dropdown-menu-sub-content]",
+  "[data-slot=select-content]",
+  "[data-slot=tooltip-content]",
+  "[role=dialog]",
+  "[role=alertdialog]",
+  "[data-sonner-toaster]",
+  "iframe",
+].join(", ")
 const COLOR_ITEMS = (Object.keys(COLORS) as ColorKey[]).map((value) => ({ value, label: COLORS[value].label }))
 
 function StateNotice({
@@ -382,6 +396,16 @@ export function BroadcastEditor({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [])
 
+  // Clicking anywhere else is the same as Done. Clicks inside the email are handled by the preview.
+  useEffect(() => {
+    if (!selectedId) return
+    function onPointerDown(event: PointerEvent) {
+      if (event.target instanceof Element && !event.target.closest(KEEPS_BLOCK_OPEN)) setSelectedId(null)
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    return () => document.removeEventListener("pointerdown", onPointerDown)
+  }, [selectedId])
+
   function jumpTo(issue: Pick<BroadcastIssue, "target">) {
     setTab("design")
     if (issue.target === "subject" || issue.target === "preheader") {
@@ -594,13 +618,7 @@ export function BroadcastEditor({
       : undefined
 
   const designView = (
-    // Clicking the space around the email puts the tools away.
-    <div
-      className="mx-auto flex w-full max-w-[42rem] flex-col gap-4"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) setSelectedId(null)
-      }}
-    >
+    <div className="mx-auto flex w-full max-w-[42rem] flex-col gap-4">
       <Card size="sm">
         <CardContent className="flex flex-col gap-1">
           <p className="text-xs text-muted-foreground">How it shows in the inbox</p>

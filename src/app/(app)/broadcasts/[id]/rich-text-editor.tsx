@@ -310,7 +310,7 @@ function Toolbar({ editor, className = "flex flex-col gap-1 border-b p-1" }: { e
         </MarkToggle>
         <ColorPopover editor={editor} current={state.color} />
         <LinkPopover editor={editor} active={state.link} />
-        <Separator orientation="vertical" className="mx-1 h-5" />
+        <Separator orientation="vertical" className="mx-1 h-5 data-vertical:self-center" />
         <MarkToggle label="Align left" pressed={state.align === "left"} onPressed={() => chain().setTextAlign("left").run()}>
           <AlignLeftIcon />
         </MarkToggle>
@@ -320,7 +320,7 @@ function Toolbar({ editor, className = "flex flex-col gap-1 border-b p-1" }: { e
         <MarkToggle label="Align right" pressed={state.align === "right"} onPressed={() => chain().setTextAlign("right").run()}>
           <AlignRightIcon />
         </MarkToggle>
-        <Separator orientation="vertical" className="mx-1 h-5" />
+        <Separator orientation="vertical" className="mx-1 h-5 data-vertical:self-center" />
         <MarkToggle label="Bulleted list" pressed={state.bullets} onPressed={() => chain().toggleBulletList().run()}>
           <ListIcon />
         </MarkToggle>

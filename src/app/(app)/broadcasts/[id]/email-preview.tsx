@@ -204,6 +204,7 @@ export function EmailPreview({
             />
             {blockFrame && onBlock && (
               <div
+                data-block-editing=""
                 className="absolute"
                 style={{
                   background: blockFrame.background,

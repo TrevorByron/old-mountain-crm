@@ -482,7 +482,7 @@ export function BlockBar({
             </FieldGroup>
           </PopoverContent>
         </Popover>
-        <Separator orientation="vertical" className="mx-0.5 h-5" />
+        <Separator orientation="vertical" className="mx-0.5 h-5 data-vertical:self-center" />
         <AddBlockMenu onAdd={onAdd} trigger={<Button variant="ghost" size="icon-sm" aria-label="Add a block below" />}>
           <PlusIcon />
         </AddBlockMenu>
@@ -508,7 +508,7 @@ export function BlockBar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button size="sm" onClick={onDone}>
+        <Button size="sm" className="ml-auto" onClick={onDone}>
           Done
         </Button>
       </div>
