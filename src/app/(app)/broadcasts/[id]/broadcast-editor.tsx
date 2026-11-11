@@ -7,6 +7,7 @@ import {
   CalendarIcon,
   CheckCircle2Icon,
   CircleAlertIcon,
+  PlusIcon,
   Redo2Icon,
   TriangleAlertIcon,
   Undo2Icon,
@@ -14,7 +15,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition, type CSSProperties } from "react"
 import { toast } from "sonner"
 
 import { MultiSelect } from "@/components/multi-select"
@@ -45,15 +46,14 @@ import {
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSidebar } from "@/components/ui/sidebar"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { COLORS, type ColorKey, type EmailContent } from "@/lib/broadcasts/blocks"
+import { COLORS, isDarkColor, newBlock, type Block, type BlockType, type ColorKey, type EmailContent } from "@/lib/broadcasts/blocks"
 import { LIFECYCLES } from "@/lib/pipeline/stages"
 import { checkBroadcast, isAudienceEmpty, type AudienceFilter, type BroadcastIssue } from "@/lib/broadcasts/content"
+import { brand, fontFamily } from "@/theme/tokens"
 
 import {
   cancelBroadcast,
@@ -69,8 +69,9 @@ import {
   resetBroadcast,
 } from "../actions"
 import { ManageMenu } from "@/components/manage-menu"
-import { BlockEditor } from "./block-editor"
+import { AddBlockMenu, BlockBar } from "./block-editor"
 import { EmailPreview } from "./email-preview"
+import { RichTextEditor } from "./rich-text-editor"
 
 type Broadcast = {
   id: string
@@ -279,7 +280,6 @@ export function BroadcastEditor({
   sendBlockers: string[]
 }) {
   const router = useRouter()
-  const isMobile = useIsMobile()
   const [name, setName] = useState(broadcast.name)
   const [subject, setSubject] = useState(broadcast.subject ?? "")
   const [preheader, setPreheader] = useState(broadcast.preheader ?? "")
@@ -293,7 +293,7 @@ export function BroadcastEditor({
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved")
   const [saveError, setSaveError] = useState<string | null>(null)
   const [tab, setTab] = useState("design")
-  const [mobileView, setMobileView] = useState("edit")
+  const [formattingSlot, setFormattingSlot] = useState<HTMLDivElement | null>(null)
   const [sendMode, setSendMode] = useState("now")
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>()
   const [scheduleTime, setScheduleTime] = useState("09:00")
@@ -384,7 +384,6 @@ export function BroadcastEditor({
 
   function jumpTo(issue: Pick<BroadcastIssue, "target">) {
     setTab("design")
-    setMobileView("edit")
     if (issue.target === "subject" || issue.target === "preheader") {
       const id = issue.target === "subject" ? "broadcast-subject" : "broadcast-preheader"
       setTimeout(() => document.getElementById(id)?.focus(), 50)
@@ -531,75 +530,151 @@ export function BroadcastEditor({
     })
   }
 
-  const designTab = (
-    <div className="flex flex-col gap-3">
+  const selectedIndex = content.blocks.findIndex((block) => block.id === selectedId)
+  const selectedBlock = selectedIndex >= 0 ? content.blocks[selectedIndex] : null
+
+  function restructure(blocks: Block[]) {
+    setContent({ ...content, blocks }, { checkpoint: true })
+  }
+
+  function addBlock(type: BlockType, index: number) {
+    const block = newBlock(type)
+    restructure([...content.blocks.slice(0, index), block, ...content.blocks.slice(index)])
+    setSelectedId(block.id)
+  }
+
+  function changeBlock(id: string, changes: Partial<Block>) {
+    setContent({ ...content, blocks: content.blocks.map((block) => (block.id === id ? ({ ...block, ...changes } as Block) : block)) })
+  }
+
+  function moveBlock(index: number, delta: number) {
+    const blocks = [...content.blocks]
+    const [block] = blocks.splice(index, 1)
+    blocks.splice(index + delta, 0, block)
+    restructure(blocks)
+  }
+
+  function duplicateBlock(index: number) {
+    const copy = { ...content.blocks[index], id: crypto.randomUUID() }
+    restructure([...content.blocks.slice(0, index + 1), copy, ...content.blocks.slice(index + 1)])
+    setSelectedId(copy.id)
+  }
+
+  function removeBlock(id: string) {
+    restructure(content.blocks.filter((block) => block.id !== id))
+    setSelectedId(null)
+    toast("Block deleted", { id: DELETED_TOAST, action: { label: "Undo", onClick: () => undoRef.current() } })
+  }
+
+  // Text is written on the email itself, in the email's own fonts and colors.
+  const writeOnBlock =
+    selectedBlock?.type === "text" && !readOnly
+      ? () => (
+          <div
+            style={
+              {
+                "--email-body": fontFamily.emailStack,
+                "--email-heading": fontFamily.emailHeadingStack,
+                "--email-kicker": fontFamily.emailKickerStack,
+                "--email-label": brand.gold,
+                color: isDarkColor(selectedBlock.background ?? content.paper) ? brand.cream : brand.textDark,
+              } as CSSProperties
+            }
+          >
+            <RichTextEditor
+              key={`${selectedBlock.id}-${editorVersion}`}
+              inline
+              autoFocus
+              doc={selectedBlock.doc}
+              toolbarTarget={formattingSlot}
+              onChange={(doc) => changeBlock(selectedBlock.id, { doc })}
+            />
+          </div>
+        )
+      : undefined
+
+  const designView = (
+    // Clicking the space around the email puts the tools away.
+    <div
+      className="mx-auto flex w-full max-w-[42rem] flex-col gap-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setSelectedId(null)
+      }}
+    >
       <Card size="sm">
-        <CardHeader>
-          <CardTitle>Email details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup className="gap-3">
-            <Field>
-              <div className="flex items-center justify-between gap-2">
-                <FieldLabel htmlFor="broadcast-subject">Subject</FieldLabel>
-                {!readOnly && (
-                  <Button variant="ghost" size="xs" onClick={addFirstNameToSubject}>
-                    <UserRoundIcon data-icon="inline-start" />
-                    First name
-                  </Button>
-                )}
-              </div>
-              <Input
-                id="broadcast-subject"
-                value={subject}
-                placeholder="What's this email about?"
-                disabled={readOnly}
-                onChange={(event) => setSubject(event.target.value)}
-              />
-              {subject.length > 60 && <FieldDescription>{subject.length} characters. Phones usually show about 60.</FieldDescription>}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="broadcast-preheader">Preview text</FieldLabel>
-              <Input
-                id="broadcast-preheader"
-                value={preheader}
-                placeholder="Shows after the subject in most inboxes"
-                disabled={readOnly}
-                onChange={(event) => setPreheader(event.target.value)}
-              />
-            </Field>
-          </FieldGroup>
+        <CardContent className="flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">How it shows in the inbox</p>
+          <div className="flex items-center gap-2">
+            <Input
+              id="broadcast-subject"
+              aria-label="Subject"
+              value={subject}
+              placeholder="Write a subject"
+              disabled={readOnly}
+              onChange={(event) => setSubject(event.target.value)}
+              className="-mx-2 h-10 min-w-0 flex-1 border-transparent bg-transparent px-2 text-lg font-semibold shadow-none hover:border-input"
+            />
+            {!readOnly && (
+              <Button variant="ghost" size="sm" onClick={addFirstNameToSubject}>
+                <UserRoundIcon data-icon="inline-start" />
+                First name
+              </Button>
+            )}
+          </div>
+          <Input
+            id="broadcast-preheader"
+            aria-label="Preview text"
+            value={preheader}
+            placeholder="Add preview text, the grey line after the subject"
+            disabled={readOnly}
+            onChange={(event) => setPreheader(event.target.value)}
+            className="-mx-2 h-8 border-transparent bg-transparent px-2 text-sm text-muted-foreground shadow-none hover:border-input"
+          />
+          {subject.length > 60 && (
+            <p className="text-xs text-muted-foreground">{subject.length} characters. Phones usually show about 60.</p>
+          )}
         </CardContent>
       </Card>
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-1">
-          <Button variant="ghost" size="icon-sm" aria-label="Undo" disabled={history.past.length === 0} onClick={undo}>
-            <Undo2Icon />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Redo" disabled={history.future.length === 0} onClick={redo}>
-            <Redo2Icon />
-          </Button>
-          <div className="ml-auto">
-            <SaveTemplateDialog content={content} />
-          </div>
-        </div>
-      )}
-      <BlockEditor
-        content={content}
-        onChange={setContent}
-        onStructureChange={(next) => setContent(next, { checkpoint: true })}
-        onRemoved={() => toast("Block deleted", { id: DELETED_TOAST, action: { label: "Undo", onClick: () => undoRef.current() } })}
+
+      <EmailPreview
+        html={preview.html}
         selectedId={selectedId}
         onSelect={setSelectedId}
-        disabled={readOnly}
-        editorVersion={editorVersion}
+        onBlock={writeOnBlock}
+        toolbar={
+          selectedBlock && !readOnly ? (
+            <BlockBar
+              block={selectedBlock}
+              position={selectedIndex}
+              total={content.blocks.length}
+              editorVersion={editorVersion}
+              formattingRef={setFormattingSlot}
+              onChange={(changes) => changeBlock(selectedBlock.id, changes)}
+              onMove={(delta) => moveBlock(selectedIndex, delta)}
+              onDuplicate={() => duplicateBlock(selectedIndex)}
+              onRemove={() => removeBlock(selectedBlock.id)}
+              onAdd={(type) => addBlock(type, selectedIndex + 1)}
+              onDone={() => setSelectedId(null)}
+            />
+          ) : undefined
+        }
       />
+
+      {!readOnly && (
+        <div className="flex justify-center">
+          <AddBlockMenu onAdd={(type) => addBlock(type, content.blocks.length)} trigger={<Button variant="outline" />}>
+            <PlusIcon data-icon="inline-start" />
+            Add a block
+          </AddBlockMenu>
+        </div>
+      )}
+
       <Card size="sm">
         <CardHeader>
           <CardTitle>Whole email</CardTitle>
           <CardDescription>Your address and unsubscribe link are always added at the bottom.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
             <ColorSelect
               id="email-page"
@@ -616,8 +691,22 @@ export function BroadcastEditor({
               onChange={(paper) => setContent({ ...content, paper }, { checkpoint: true })}
             />
           </div>
+          {!readOnly && (
+            <div className="flex flex-wrap items-center gap-1">
+              <Button variant="ghost" size="icon-sm" aria-label="Undo" disabled={history.past.length === 0} onClick={undo}>
+                <Undo2Icon />
+              </Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Redo" disabled={history.future.length === 0} onClick={redo}>
+                <Redo2Icon />
+              </Button>
+              <div className="ml-auto">
+                <SaveTemplateDialog content={content} />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
       {!readOnly && (
         <Button onClick={() => setTab("send")}>
           Next: audience and send
@@ -829,32 +918,6 @@ export function BroadcastEditor({
     </div>
   )
 
-  const form = (
-    <div className="flex flex-col gap-4 pb-6 md:pr-4">
-      <StateNotice
-        broadcast={broadcast}
-        sentCount={sentCount}
-        totalCount={totalCount}
-        onCancel={cancel}
-        onResume={resume}
-        disabled={isPending}
-      />
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="design">1. Design</TabsTrigger>
-          <TabsTrigger value="send">2. Audience and send</TabsTrigger>
-        </TabsList>
-        <TabsContent value="design" className="pt-2">
-          {designTab}
-        </TabsContent>
-        <TabsContent value="send" className="pt-2">
-          {sendTab}
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
-
-  const previewPane = <EmailPreview html={preview.html} selectedId={selectedId} onSelect={setSelectedId} />
   const saveStatus = readOnly
     ? "Not editable"
     : saveState === "saving"
@@ -866,8 +929,8 @@ export function BroadcastEditor({
           : "Saving soon..."
 
   return (
-    <>
-      <div className="flex items-center gap-1">
+    <Tabs value={tab} onValueChange={setTab} className="gap-6">
+      <div className="flex flex-wrap items-center gap-1">
         <Button variant="ghost" size="icon-sm" aria-label="Back to emails" render={<Link href="/broadcasts" />} nativeButton={false}>
           <ArrowLeftIcon />
         </Button>
@@ -882,7 +945,11 @@ export function BroadcastEditor({
         <span className="ml-1 shrink-0 text-xs text-muted-foreground" aria-live="polite">
           {saveStatus}
         </span>
-        <div className="ml-auto">
+        <TabsList className="order-last w-full md:order-none md:ml-auto md:w-auto">
+          <TabsTrigger value="design">1. Design</TabsTrigger>
+          <TabsTrigger value="send">2. Audience and send</TabsTrigger>
+        </TabsList>
+        <div className="ml-auto md:ml-2">
           <ManageMenu
             label="More actions"
             actions={[
@@ -919,34 +986,20 @@ export function BroadcastEditor({
           />
         </div>
       </div>
-      {isMobile ? (
-        <Tabs value={mobileView} onValueChange={setMobileView}>
-          <TabsList>
-            <TabsTrigger value="edit">Edit</TabsTrigger>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-          </TabsList>
-          <TabsContent value="edit" className="pt-2">
-            {form}
-          </TabsContent>
-          <TabsContent value="preview" className="pt-2">
-            {previewPane}
-          </TabsContent>
-        </Tabs>
-      ) : (
-        // The form scrolls on its own, which clips anything past its edge, so it gets room on every
-        // side for the cards' shadows. The negative margin keeps the cards lined up with the page.
-        <div className="-mx-5 -mt-2 h-[calc(100svh-10rem)] min-h-[32rem]">
-          <ResizablePanelGroup orientation="horizontal">
-            <ResizablePanel defaultSize="50%" minSize="35%" className="overflow-y-auto px-5 pt-2 pb-8">
-              {form}
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize="50%" minSize="30%" className="pt-2 pr-5 pl-3">
-              {previewPane}
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
-      )}
-    </>
+      <div className="mx-auto w-full max-w-[42rem] empty:hidden">
+        <StateNotice
+          broadcast={broadcast}
+          sentCount={sentCount}
+          totalCount={totalCount}
+          onCancel={cancel}
+          onResume={resume}
+          disabled={isPending}
+        />
+      </div>
+      <TabsContent value="design">{designView}</TabsContent>
+      <TabsContent value="send">
+        <div className="mx-auto w-full max-w-[42rem]">{sendTab}</div>
+      </TabsContent>
+    </Tabs>
   )
 }

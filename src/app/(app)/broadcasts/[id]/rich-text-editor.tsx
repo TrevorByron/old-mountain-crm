@@ -22,6 +22,7 @@ import {
   UserRoundIcon,
 } from "lucide-react"
 import { useState } from "react"
+import { createPortal } from "react-dom"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -244,7 +245,7 @@ function FirstNamePopover({ editor }: { editor: Editor }) {
   )
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, className = "flex flex-col gap-1 border-b p-1" }: { editor: Editor; className?: string }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => {
@@ -275,7 +276,7 @@ function Toolbar({ editor }: { editor: Editor }) {
   }
 
   return (
-    <div className="flex flex-col gap-1 border-b p-1">
+    <div className={className}>
       <div className="flex flex-wrap items-center gap-1">
         <ToolbarSelect label="Text style" items={TEXT_STYLES} value={state.block} onChange={setBlock} className="w-28" />
         <ToolbarSelect
@@ -346,14 +347,25 @@ function Toolbar({ editor }: { editor: Editor }) {
   )
 }
 
+// Written straight onto the email: the same fonts and spacing as the email's own text,
+// so the words don't move when the preview catches up.
+const INLINE_CLASS =
+  "outline-none [font-family:var(--email-body)] text-[17px] leading-[27px] [&_a]:font-bold [&_a]:underline [&_h1]:mb-4 [&_h1]:[font-family:var(--email-heading)] [&_h1]:text-[36px] [&_h1]:leading-[42px] [&_h2]:mb-4 [&_h2]:[font-family:var(--email-heading)] [&_h2]:text-[24px] [&_h2]:leading-[30px] [&_h3]:mb-2.5 [&_h3]:[font-family:var(--email-kicker)] [&_h3]:text-[13px] [&_h3]:leading-5 [&_h3]:font-bold [&_h3]:tracking-[0.18em] [&_h3]:text-(--email-label) [&_h3]:uppercase [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-4 [&_p]:min-h-[27px] [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:pl-6"
+
 export function RichTextEditor({
   doc,
   onChange,
   disabled,
+  inline = false,
+  toolbarTarget,
+  autoFocus = false,
 }: {
   doc: RichNode
   onChange: (doc: RichNode) => void
   disabled?: boolean
+  inline?: boolean
+  toolbarTarget?: HTMLElement | null
+  autoFocus?: boolean
 }) {
   const editor = useEditor({
     immediatelyRender: false,
@@ -372,16 +384,27 @@ export function RichTextEditor({
       MergeTagHighlight,
     ],
     content: doc,
+    autofocus: autoFocus ? "end" : false,
     editorProps: {
       attributes: {
         "aria-label": "Text",
-        class:
-          "min-h-24 p-3 text-sm outline-none [&_a]:underline [&_h1]:text-2xl [&_h1]:font-serif [&_h2]:text-lg [&_h2]:font-serif [&_h3]:font-mono [&_h3]:text-xs [&_h3]:font-bold [&_h3]:tracking-widest [&_h3]:text-chart-4 [&_h3]:uppercase [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5",
+        class: inline
+          ? INLINE_CLASS
+          : "min-h-24 p-3 text-sm outline-none [&_a]:underline [&_h1]:text-2xl [&_h1]:font-serif [&_h2]:text-lg [&_h2]:font-serif [&_h3]:font-mono [&_h3]:text-xs [&_h3]:font-bold [&_h3]:tracking-widest [&_h3]:text-chart-4 [&_h3]:uppercase [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5",
       },
     },
     // A plain copy, because the editor's own objects can't be sent to a server action.
     onUpdate: ({ editor: current }) => onChange(JSON.parse(JSON.stringify(current.getJSON())) as RichNode),
   })
+
+  if (inline) {
+    return (
+      <>
+        {editor && !disabled && toolbarTarget && createPortal(<Toolbar editor={editor} className="flex flex-col gap-1" />, toolbarTarget)}
+        <EditorContent editor={editor} />
+      </>
+    )
+  }
 
   return (
     <div className="overflow-hidden rounded-lg border bg-background">

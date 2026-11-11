@@ -1,13 +1,9 @@
 "use client"
 
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
   CopyIcon,
-  GripVerticalIcon,
   ImageIcon,
   LayoutPanelLeftIcon,
   LinkIcon,
@@ -20,10 +16,9 @@ import {
   Trash2Icon,
   TypeIcon,
 } from "lucide-react"
-import { useEffect, useRef } from "react"
+import type { ReactElement, ReactNode, Ref } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -35,7 +30,9 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   BLOCK_LABELS,
@@ -369,20 +366,6 @@ function BlockFields({
   }
 }
 
-function blockSummary(block: Block) {
-  if (block.type === "text" || block.type === "image_text") {
-    const words = (node: RichNode): string => node.text ?? (node.content ?? []).map(words).join(" ")
-    const text = words(block.doc).replace(/\{\{[^}]*\}\}/g, "(name)").trim()
-    return text || "Empty"
-  }
-  if (block.type === "image") return block.src ? block.alt || "No description yet" : "No photo yet"
-  if (block.type === "button") return block.label || "No label yet"
-  if (block.type === "logo") return { lockup: "Full logo", mark_gold: "Gold mountain", mark_cream: "Cream mountain" }[block.variant]
-  if (block.type === "links") return block.items.map((item) => item.label).filter(Boolean).join(" · ") || "No links yet"
-  if (block.type === "spacer") return SPACING_LABELS[block.spacing]
-  return ""
-}
-
 const BLOCK_ICONS: Record<BlockType, typeof TypeIcon> = {
   text: TypeIcon,
   image: ImageIcon,
@@ -394,157 +377,20 @@ const BLOCK_ICONS: Record<BlockType, typeof TypeIcon> = {
   links: LinkIcon,
 }
 
-function SortableBlock({
-  block,
-  position,
-  total,
-  selected,
-  onSelect,
-  onChange,
-  onMove,
-  onDuplicate,
-  onRemove,
-  disabled,
-  editorVersion,
-}: {
-  block: Block
-  position: number
-  total: number
-  selected: boolean
-  onSelect: () => void
-  onChange: (changes: Partial<Block>) => void
-  onMove: (delta: number) => void
-  onDuplicate: () => void
-  onRemove: () => void
-  disabled?: boolean
-  editorVersion: number
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id, disabled })
-  const label = BLOCK_LABELS[block.type].label
-  const Icon = BLOCK_ICONS[block.type]
-  const row = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (selected) row.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
-  }, [selected])
-
-  return (
-    <div
-      ref={(element) => {
-        setNodeRef(element)
-        row.current = element
-      }}
-      style={{ transform: CSS.Translate.toString(transform), transition, zIndex: isDragging ? 10 : undefined }}
-    >
-      <Card size="sm" className={selected ? "gap-2 pt-1 pb-3 ring-2 ring-ring" : "gap-0 py-1"}>
-        <div className="flex items-center gap-1 px-1">
-          {!disabled && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="cursor-grab touch-none text-muted-foreground"
-              aria-label={`Drag ${label} block`}
-              {...attributes}
-              {...listeners}
-            >
-              <GripVerticalIcon />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            className="h-auto min-w-0 flex-1 justify-start gap-2 rounded-lg py-1.5 text-left"
-            aria-expanded={selected}
-            onClick={onSelect}
-          >
-            <Icon data-icon="inline-start" />
-            <span className="min-w-0">
-              <span className="block text-xs font-normal text-muted-foreground">{label}</span>
-              <span className="block truncate font-medium">{blockSummary(block) || label}</span>
-            </span>
-          </Button>
-          {!disabled && (
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`More actions for ${label}`} />}>
-                <MoreHorizontalIcon />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem disabled={position === 0} onClick={() => onMove(-1)}>
-                  <ArrowUpIcon />
-                  Move up
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={position === total - 1} onClick={() => onMove(1)}>
-                  <ArrowDownIcon />
-                  Move down
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onDuplicate}>
-                  <CopyIcon />
-                  Duplicate
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onClick={onRemove}>
-                  <Trash2Icon />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-        {selected && (
-          <CardContent>
-            <FieldGroup className="gap-4">
-              <BlockFields block={block} onChange={onChange} disabled={disabled} editorVersion={editorVersion} />
-              <div className="grid grid-cols-2 gap-3 border-t pt-3">
-                <Picker
-                  label="Background"
-                  id={`${block.id}-background`}
-                  disabled={disabled}
-                  value={block.background ?? NONE}
-                  items={[{ value: NONE, label: "None" }, ...COLOR_ITEMS]}
-                  onChange={(value) => onChange({ background: value === NONE ? null : (value as ColorKey) })}
-                />
-                <Picker
-                  label={block.type === "spacer" ? "Height" : "Spacing"}
-                  id={`${block.id}-spacing`}
-                  disabled={disabled}
-                  value={block.spacing}
-                  items={(Object.keys(SPACING) as (keyof typeof SPACING)[]).map((key) => ({ value: key, label: SPACING_LABELS[key] }))}
-                  onChange={(value) => onChange({ spacing: value as keyof typeof SPACING })}
-                />
-              </div>
-            </FieldGroup>
-          </CardContent>
-        )}
-      </Card>
-    </div>
-  )
-}
-
 const ADDABLE: BlockType[] = ["text", "image", "image_text", "button", "logo", "divider", "spacer", "links"]
 
-function AddBlockMenu({ onAdd, between }: { onAdd: (type: BlockType) => void; between?: boolean }) {
+export function AddBlockMenu({
+  onAdd,
+  trigger,
+  children,
+}: {
+  onAdd: (type: BlockType) => void
+  trigger: ReactElement
+  children: ReactNode
+}) {
   return (
     <DropdownMenu>
-      {between ? (
-        <div className="group/add flex h-3 items-center justify-center">
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="outline"
-                size="icon-xs"
-                aria-label="Add a block here"
-                className="opacity-0 transition-opacity group-hover/add:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-              />
-            }
-          >
-            <PlusIcon />
-          </DropdownMenuTrigger>
-        </div>
-      ) : (
-        <DropdownMenuTrigger render={<Button variant="outline" className="w-full" />}>
-          <PlusIcon data-icon="inline-start" />
-          Add a block
-        </DropdownMenuTrigger>
-      )}
+      <DropdownMenuTrigger render={trigger}>{children}</DropdownMenuTrigger>
       <DropdownMenuContent className="w-72">
         {ADDABLE.map((type) => {
           const Icon = BLOCK_ICONS[type]
@@ -563,89 +409,110 @@ function AddBlockMenu({ onAdd, between }: { onAdd: (type: BlockType) => void; be
   )
 }
 
-export function BlockEditor({
-  content,
+// Floats over the block you clicked in the email. Text is written on the email itself, and
+// its formatting tools land in the slot at the bottom of this bar.
+export function BlockBar({
+  block,
+  position,
+  total,
   onChange,
-  onStructureChange,
-  onRemoved,
-  selectedId,
-  onSelect,
-  disabled,
+  onMove,
+  onDuplicate,
+  onRemove,
+  onAdd,
+  onDone,
   editorVersion,
+  formattingRef,
 }: {
-  content: EmailContent
-  onChange: (content: EmailContent) => void
-  onStructureChange: (content: EmailContent) => void
-  onRemoved: () => void
-  selectedId: string | null
-  onSelect: (id: string | null) => void
-  disabled?: boolean
+  block: Block
+  position: number
+  total: number
+  onChange: (changes: Partial<Block>) => void
+  onMove: (delta: number) => void
+  onDuplicate: () => void
+  onRemove: () => void
+  onAdd: (type: BlockType) => void
+  onDone: () => void
   editorVersion: number
+  formattingRef: Ref<HTMLDivElement>
 }) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-  const { blocks } = content
-  const setBlocks = (next: Block[]) => onChange({ ...content, blocks: next })
-  const restructure = (next: Block[]) => onStructureChange({ ...content, blocks: next })
-
-  function add(type: BlockType, index: number) {
-    const block = newBlock(type)
-    restructure([...blocks.slice(0, index), block, ...blocks.slice(index)])
-    onSelect(block.id)
-  }
-
-  function onDragEnd({ active, over }: DragEndEvent) {
-    if (!over || active.id === over.id) return
-    restructure(
-      arrayMove(
-        blocks,
-        blocks.findIndex((item) => item.id === active.id),
-        blocks.findIndex((item) => item.id === over.id)
-      )
-    )
-  }
+  const label = BLOCK_LABELS[block.type].label
+  const Icon = BLOCK_ICONS[block.type]
+  const hasFields = block.type !== "text" && block.type !== "spacer"
 
   return (
-    <div className="flex flex-col">
-      <DndContext id="email-blocks" sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={blocks.map((block) => block.id)} strategy={verticalListSortingStrategy}>
-          {blocks.map((block, index) => (
-            <div key={block.id}>
-              <SortableBlock
-                block={block}
-                position={index}
-                total={blocks.length}
-                disabled={disabled}
-                editorVersion={editorVersion}
-                selected={selectedId === block.id}
-                onSelect={() => onSelect(selectedId === block.id ? null : block.id)}
-                onChange={(changes) =>
-                  setBlocks(blocks.map((item) => (item.id === block.id ? ({ ...item, ...changes } as Block) : item)))
-                }
-                onMove={(delta) => restructure(arrayMove(blocks, index, index + delta))}
-                onDuplicate={() => {
-                  const copy = { ...block, id: crypto.randomUUID() }
-                  restructure([...blocks.slice(0, index + 1), copy, ...blocks.slice(index + 1)])
-                  onSelect(copy.id)
-                }}
-                onRemove={() => {
-                  restructure(blocks.filter((item) => item.id !== block.id))
-                  if (selectedId === block.id) onSelect(null)
-                  onRemoved()
-                }}
+    <div
+      role="toolbar"
+      aria-label={`${label} block`}
+      className="mx-2 flex max-w-[calc(100%-1rem)] flex-col gap-1 rounded-xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10"
+    >
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="flex items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground max-sm:hidden">
+          <Icon className="size-3.5" />
+          {label}
+        </span>
+        {hasFields && (
+          <Popover>
+            <PopoverTrigger render={<Button variant="secondary" size="sm" />}>Edit {label.toLowerCase()}</PopoverTrigger>
+            <PopoverContent align="start" className="max-h-[70svh] w-80 overflow-y-auto">
+              <FieldGroup className="gap-4">
+                <BlockFields block={block} onChange={onChange} editorVersion={editorVersion} />
+              </FieldGroup>
+            </PopoverContent>
+          </Popover>
+        )}
+        <Popover>
+          <PopoverTrigger render={<Button variant="ghost" size="sm" />}>{block.type === "spacer" ? "Height" : "Spacing"}</PopoverTrigger>
+          <PopoverContent align="start" className="w-72">
+            <FieldGroup className="gap-4">
+              <Picker
+                label={block.type === "spacer" ? "Height" : "Space around it"}
+                id={`${block.id}-spacing`}
+                value={block.spacing}
+                items={(Object.keys(SPACING) as (keyof typeof SPACING)[]).map((key) => ({ value: key, label: SPACING_LABELS[key] }))}
+                onChange={(value) => onChange({ spacing: value as keyof typeof SPACING })}
               />
-              {!disabled && index < blocks.length - 1 && <AddBlockMenu between onAdd={(type) => add(type, index + 1)} />}
-            </div>
-          ))}
-        </SortableContext>
-      </DndContext>
-      {!disabled && (
-        <div className="mt-3">
-          <AddBlockMenu onAdd={(type) => add(type, blocks.length)} />
-        </div>
-      )}
+              <Picker
+                label="Background"
+                id={`${block.id}-background`}
+                value={block.background ?? NONE}
+                items={[{ value: NONE, label: "None" }, ...COLOR_ITEMS]}
+                onChange={(value) => onChange({ background: value === NONE ? null : (value as ColorKey) })}
+              />
+            </FieldGroup>
+          </PopoverContent>
+        </Popover>
+        <Separator orientation="vertical" className="mx-0.5 h-5" />
+        <AddBlockMenu onAdd={onAdd} trigger={<Button variant="ghost" size="icon-sm" aria-label="Add a block below" />}>
+          <PlusIcon />
+        </AddBlockMenu>
+        <Button variant="ghost" size="icon-sm" aria-label="Move up" disabled={position === 0} onClick={() => onMove(-1)}>
+          <ArrowUpIcon />
+        </Button>
+        <Button variant="ghost" size="icon-sm" aria-label="Move down" disabled={position === total - 1} onClick={() => onMove(1)}>
+          <ArrowDownIcon />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`More actions for ${label}`} />}>
+            <MoreHorizontalIcon />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={onDuplicate}>
+              <CopyIcon />
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={onRemove}>
+              <Trash2Icon />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button size="sm" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+      {block.type === "text" && <div ref={formattingRef} className="border-t pt-1 empty:hidden" />}
     </div>
   )
 }
